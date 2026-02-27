@@ -426,7 +426,9 @@ export interface AllocationRule {
   id: string;
   name: string;
   source_cost_center_id: string;
+  cost_element: string | null;
   basis: AllocationBasis;
+  priority: number;
   is_active: boolean;
   notes: string | null;
   targets: AllocationRuleTarget[];
@@ -438,7 +440,9 @@ export interface AllocationRule {
 export interface AllocationRuleCreate {
   name: string;
   source_cost_center_id: string;
+  cost_element?: string | null;
   basis?: AllocationBasis;
+  priority?: number;
   is_active?: boolean;
   notes?: string | null;
   targets: { target_cost_center_id: string; ratio: string }[];

@@ -301,7 +301,9 @@ class AllocationRuleTargetRead(AllocationRuleTargetBase):
 class AllocationRuleBase(BaseModel):
     name: str = Field(max_length=100)
     source_cost_center_id: uuid.UUID
+    cost_element: str | None = Field(default=None, max_length=30, description="対象原価要素(labor/overhead/outsourcing)。NULLは全要素に適用")
     basis: AllocationBasis = AllocationBasis.raw_material_quantity
+    priority: int = Field(default=0, description="優先度（大きい方が優先）")
     is_active: bool = True
     notes: str | None = None
 
@@ -313,7 +315,9 @@ class AllocationRuleCreate(AllocationRuleBase):
 class AllocationRuleUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=100)
     source_cost_center_id: uuid.UUID | None = None
+    cost_element: str | None = Field(default=None, max_length=30)
     basis: AllocationBasis | None = None
+    priority: int | None = None
     is_active: bool | None = None
     notes: str | None = None
     targets: list[AllocationRuleTargetCreate] | None = None

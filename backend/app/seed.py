@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import async_session_factory
 from app.models.master import (
+    AllocationBasis,
+    AllocationRule,
     BomHeader,
     BomLine,
     BomType,
@@ -480,6 +482,53 @@ async def seed_cost_budgets(db: AsyncSession) -> None:
     print(f"  予算データ: {budget_count}件 作成")
 
 
+async def seed_allocation_rules(db: AsyncSession) -> None:
+    """Seed allocation rules for manufacturing and product departments."""
+    existing = await db.execute(select(AllocationRule).limit(1))
+    if existing.scalar_one_or_none():
+        print("  配賦ルール: スキップ（既存データあり）")
+        return
+
+    cc_map = await _get_map(db, CostCenter)
+    mfg = cc_map.get("MFG")
+    prd = cc_map.get("PRD")
+
+    rules = []
+    if mfg:
+        # 製造部: 労務費は生産時間ベース、経費は原料使用数量ベース
+        rules.append(AllocationRule(
+            name="製造部 労務費配賦（生産時間）",
+            source_cost_center_id=mfg.id,
+            cost_element="labor",
+            basis=AllocationBasis.production_hours,
+            priority=10,
+            notes="労務費を直接生産時間で原体に配賦",
+        ))
+        rules.append(AllocationRule(
+            name="製造部 経費配賦（原料数量）",
+            source_cost_center_id=mfg.id,
+            cost_element="overhead",
+            basis=AllocationBasis.raw_material_quantity,
+            priority=10,
+            notes="経費を原料使用数量で原体に配賦",
+        ))
+
+    if prd:
+        # 製品課: 全要素を重量ベースで配賦
+        rules.append(AllocationRule(
+            name="製品課 配賦（重量基準）",
+            source_cost_center_id=prd.id,
+            cost_element=None,  # 全要素に適用
+            basis=AllocationBasis.weight_based,
+            priority=0,
+            notes="労務費・経費・外注費を内容量(g)で製品に配賦",
+        ))
+
+    db.add_all(rules)
+    await db.flush()
+    print(f"  配賦ルール: {len(rules)}件 作成")
+
+
 async def main() -> None:
     print("シードデータ投入開始...")
     async with async_session_factory() as db:
@@ -491,6 +540,7 @@ async def main() -> None:
         await seed_fiscal_periods(db)
         await seed_bom_data(db)
         await seed_cost_budgets(db)
+        await seed_allocation_rules(db)
         await db.commit()
     print("シードデータ投入完了")
 

@@ -232,9 +232,14 @@ class AllocationRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     source_cost_center_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("cost_centers.id"), nullable=False
     )
+    cost_element: Mapped[str | None] = mapped_column(
+        String(30), nullable=True, index=True,
+        comment="対象原価要素(labor/overhead/outsourcing)。NULLは全要素に適用"
+    )
     basis: Mapped[AllocationBasis] = mapped_column(
         Enum(AllocationBasis), nullable=False, default=AllocationBasis.raw_material_quantity
     )
+    priority: Mapped[int] = mapped_column(Integer, default=0, comment="優先度（大きい方が優先）")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
 

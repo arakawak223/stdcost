@@ -131,7 +131,9 @@ async def calculate_standard_costs(
             if line.material_id:
                 total_qty += line.quantity * (D("1") + line.loss_rate)
         cp_std_quantities[cp_id] = total_qty
-        cp_item_data[cp_id] = {"raw_material_quantity": total_qty}
+        # production_hours: estimated from material processing (1h per 10kg of raw material)
+        est_hours = (total_qty / D("10")).quantize(FOUR, ROUND_HALF_UP) if total_qty > 0 else ZERO
+        cp_item_data[cp_id] = {"raw_material_quantity": total_qty, "production_hours": est_hours}
 
     # Allocate labor and overhead budgets via rule-based allocation
     mfg_center_id = mfg_budget.cost_center_id if mfg_budget else None

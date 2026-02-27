@@ -55,14 +55,32 @@ async def load_allocation_rules(
     db: AsyncSession,
     source_cost_center_id,
 ) -> list[AllocationRule]:
-    """Load active allocation rules for a given source cost center."""
+    """Load active allocation rules for a given source cost center, ordered by priority desc."""
     result = await db.execute(
         select(AllocationRule).where(
             AllocationRule.source_cost_center_id == source_cost_center_id,
             AllocationRule.is_active == True,
-        )
+        ).order_by(AllocationRule.priority.desc())
     )
     return list(result.scalars().unique().all())
+
+
+def _find_matching_rule(
+    rules: list[AllocationRule],
+    cost_element: str,
+) -> AllocationRule | None:
+    """Find the best matching rule for a cost element.
+
+    Priority: exact cost_element match > wildcard (NULL) rule.
+    Within each group, higher priority value wins (already sorted).
+    """
+    wildcard_rule = None
+    for rule in rules:
+        if rule.cost_element == cost_element:
+            return rule
+        if rule.cost_element is None and wildcard_rule is None:
+            wildcard_rule = rule
+    return wildcard_rule
 
 
 def compute_allocation_quantities(
@@ -88,8 +106,12 @@ def compute_allocation_quantities(
         elif basis == AllocationBasis.crude_quantity:
             quantities[item_id] = Decimal(str(data.get("crude_quantity", 0)))
         elif basis == AllocationBasis.production_hours:
-            # Future extension: use production hours. Fall back to raw_material_quantity.
-            quantities[item_id] = Decimal(str(data.get("raw_material_quantity", 0)))
+            # Use production_hours if available; fall back to raw_material_quantity
+            hours = data.get("production_hours")
+            if hours is not None and Decimal(str(hours)) > 0:
+                quantities[item_id] = Decimal(str(hours))
+            else:
+                quantities[item_id] = Decimal(str(data.get("raw_material_quantity", 0)))
         elif basis == AllocationBasis.manual:
             # Manual uses ratio from AllocationRuleTarget; handled separately.
             quantities[item_id] = ZERO
@@ -163,11 +185,8 @@ async def execute_rule_based_allocation(
             result[cost_element] = {item_id: ZERO for item_id in item_data}
             continue
 
-        # Find a rule for this cost element, or use the first rule, or fall back to default
-        matching_rule = None
-        for rule in rules:
-            matching_rule = rule
-            break  # Use the first active rule
+        # Find the best matching rule: exact cost_element > wildcard (NULL) > no rule
+        matching_rule = _find_matching_rule(rules, cost_element)
 
         if matching_rule and matching_rule.basis == AllocationBasis.manual:
             # Manual allocation: use target ratios

@@ -34,6 +34,12 @@ const basisLabels: Record<string, string> = {
   manual: "手動設定",
 };
 
+const costElementLabels: Record<string, string> = {
+  labor: "労務費",
+  overhead: "経費",
+  outsourcing: "外注費",
+};
+
 export default function AllocationRulesPage() {
   const { data: rules, isLoading } = useAllocationRules();
   const { data: costCenters } = useCostCenters();
@@ -43,7 +49,9 @@ export default function AllocationRulesPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [name, setName] = useState("");
   const [sourceCcId, setSourceCcId] = useState("");
+  const [costElement, setCostElement] = useState<string>("");
   const [basis, setBasis] = useState<AllocationBasis>("raw_material_quantity");
+  const [priority, setPriority] = useState("0");
   const [targets, setTargets] = useState<{ target_cost_center_id: string; ratio: string }[]>([]);
 
   const ccMap = Object.fromEntries((costCenters || []).map((cc) => [cc.id, cc]));
@@ -52,12 +60,16 @@ export default function AllocationRulesPage() {
     await createRule.mutateAsync({
       name,
       source_cost_center_id: sourceCcId,
+      cost_element: costElement || null,
       basis,
+      priority: parseInt(priority, 10) || 0,
       targets,
     });
     setShowDialog(false);
     setName("");
     setSourceCcId("");
+    setCostElement("");
+    setPriority("0");
     setTargets([]);
   };
 
@@ -89,7 +101,9 @@ export default function AllocationRulesPage() {
                 <TableRow>
                   <TableHead>ルール名</TableHead>
                   <TableHead>配賦元部門</TableHead>
+                  <TableHead>対象要素</TableHead>
                   <TableHead>配賦基準</TableHead>
+                  <TableHead>優先度</TableHead>
                   <TableHead>ターゲット数</TableHead>
                   <TableHead>状態</TableHead>
                   <TableHead></TableHead>
@@ -102,7 +116,11 @@ export default function AllocationRulesPage() {
                     <TableCell>
                       {rule.source_cost_center?.name || ccMap[rule.source_cost_center_id]?.name || "-"}
                     </TableCell>
+                    <TableCell>
+                      {rule.cost_element ? (costElementLabels[rule.cost_element] || rule.cost_element) : "全要素"}
+                    </TableCell>
                     <TableCell>{basisLabels[rule.basis] || rule.basis}</TableCell>
+                    <TableCell>{rule.priority ?? 0}</TableCell>
                     <TableCell>{rule.targets.length}件</TableCell>
                     <TableCell>
                       <Badge variant={rule.is_active ? "success" : "secondary"}>
@@ -157,6 +175,19 @@ export default function AllocationRulesPage() {
               </select>
             </div>
             <div className="space-y-2">
+              <Label>対象原価要素</Label>
+              <select
+                className="w-full rounded border bg-background px-3 py-2 text-sm"
+                value={costElement}
+                onChange={(e) => setCostElement(e.target.value)}
+              >
+                <option value="">全要素（共通ルール）</option>
+                {Object.entries(costElementLabels).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
               <Label>配賦基準</Label>
               <select
                 className="w-full rounded border bg-background px-3 py-2 text-sm"
@@ -167,6 +198,10 @@ export default function AllocationRulesPage() {
                   <option key={k} value={k}>{v}</option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label>優先度（大きい方が優先）</Label>
+              <Input type="number" value={priority} onChange={(e) => setPriority(e.target.value)} placeholder="0" />
             </div>
             <div className="space-y-2">
               <Label>ターゲット部門</Label>
