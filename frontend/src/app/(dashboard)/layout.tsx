@@ -18,6 +18,7 @@ import {
   Wallet,
   DollarSign,
   Bot,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ const analysisNavigation = [
   { name: "データ取込", href: "/imports", icon: Upload },
   { name: "実際原価", href: "/actual-costs", icon: DollarSign },
   { name: "AIアシスタント", href: "/ai-assistant", icon: Bot },
+  { name: "突合チェック", href: "/reconciliation", icon: Scale },
 ];
 
 export default function DashboardLayout({
@@ -95,7 +97,7 @@ export default function DashboardLayout({
           {renderNavItems(analysisNavigation)}
         </nav>
         <div className="border-t p-4">
-          <p className="text-xs text-muted-foreground">Phase 5 - AI統合</p>
+          <p className="text-xs text-muted-foreground">Phase 6 - 突合チェック</p>
         </div>
       </aside>
 

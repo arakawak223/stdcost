@@ -876,3 +876,53 @@ export const aiApi = {
       body: JSON.stringify(data),
     }),
 };
+
+// Reconciliation (Phase 6)
+export type ReconciliationStatus = "matched" | "unmatched" | "discrepancy";
+
+export interface ReconciliationResult {
+  id: string;
+  period_id: string;
+  entity_type: string;
+  entity_id: string;
+  source_a: string;
+  source_b: string;
+  value_a: string | null;
+  value_b: string | null;
+  difference: string | null;
+  status: ReconciliationStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReconciliationSummary {
+  period_id: string;
+  total: number;
+  matched: number;
+  unmatched: number;
+  discrepancy: number;
+}
+
+export interface ReconcileResponse {
+  summary: ReconciliationSummary;
+  results: ReconciliationResult[];
+  message: string;
+}
+
+export const reconciliationApi = {
+  run: (data: { period_id: string; threshold?: number }) =>
+    fetchApi<ReconcileResponse>("/reconciliation/run", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listResults: (params?: { period_id?: string; status?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.period_id) searchParams.set("period_id", params.period_id);
+    if (params?.status) searchParams.set("status", params.status);
+    const qs = searchParams.toString();
+    return fetchApi<ReconciliationResult[]>(`/reconciliation/results${qs ? `?${qs}` : ""}`);
+  },
+  summary: (period_id: string) =>
+    fetchApi<ReconciliationSummary>(`/reconciliation/summary?period_id=${period_id}`),
+};

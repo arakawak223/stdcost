@@ -145,3 +145,10 @@ export const reviewStatusLabels: Record<string, string> = {
   approved: "承認済み",
   rejected: "却下",
 };
+
+/** Reconciliation status labels */
+export const reconciliationStatusLabels: Record<string, string> = {
+  matched: "一致",
+  unmatched: "未照合",
+  discrepancy: "不一致",
+};
