@@ -15,6 +15,7 @@ from app.api.v1 import (
     inventory,
     materials,
     products,
+    reconciliation,
     variances,
 )
 
@@ -35,3 +36,4 @@ router.include_router(imports.router, prefix="/imports", tags=["データ取込"
 router.include_router(inventory.router, prefix="/inventory", tags=["在庫移動"])
 router.include_router(variances.router, prefix="/costs/variance", tags=["差異分析"])
 router.include_router(ai.router, prefix="/ai", tags=["AIアシスタント"])
+router.include_router(reconciliation.router, prefix="/reconciliation", tags=["突合チェック"])
