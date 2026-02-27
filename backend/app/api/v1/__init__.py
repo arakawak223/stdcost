@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     actual_costs,
+    ai,
     allocation_rules,
     bom,
     contractors,
@@ -33,3 +34,4 @@ router.include_router(actual_costs.router, prefix="/costs/actual", tags=["実際
 router.include_router(imports.router, prefix="/imports", tags=["データ取込"])
 router.include_router(inventory.router, prefix="/inventory", tags=["在庫移動"])
 router.include_router(variances.router, prefix="/costs/variance", tags=["差異分析"])
+router.include_router(ai.router, prefix="/ai", tags=["AIアシスタント"])
