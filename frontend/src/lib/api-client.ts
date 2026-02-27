@@ -574,3 +574,251 @@ export const standardCostsApi = {
   },
   get: (id: string) => fetchApi<StandardCost>(`/costs/standard/${id}`),
 };
+
+// Actual Costs
+export type SourceSystem =
+  | "geneki_db"
+  | "sc_system"
+  | "kanjyo_bugyo"
+  | "tsuhan21"
+  | "romu_db"
+  | "product_db"
+  | "manual";
+
+export type CostElement =
+  | "material"
+  | "crude_product"
+  | "packaging"
+  | "labor"
+  | "overhead"
+  | "outsourcing"
+  | "prior_process";
+
+export interface ActualCost {
+  id: string;
+  product_id: string;
+  cost_center_id: string;
+  period_id: string;
+  crude_product_cost: string;
+  packaging_cost: string;
+  labor_cost: string;
+  overhead_cost: string;
+  outsourcing_cost: string;
+  total_cost: string;
+  quantity_produced: string;
+  source_system: SourceSystem;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrudeProductActualCost {
+  id: string;
+  crude_product_id: string;
+  period_id: string;
+  material_cost: string;
+  labor_cost: string;
+  overhead_cost: string;
+  prior_process_cost: string;
+  total_cost: string;
+  actual_quantity: string;
+  source_system: SourceSystem;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const actualCostsApi = {
+  list: (params?: { period_id?: string; product_id?: string; cost_center_id?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.period_id) searchParams.set("period_id", params.period_id);
+    if (params?.product_id) searchParams.set("product_id", params.product_id);
+    if (params?.cost_center_id) searchParams.set("cost_center_id", params.cost_center_id);
+    const qs = searchParams.toString();
+    return fetchApi<ActualCost[]>(`/costs/actual${qs ? `?${qs}` : ""}`);
+  },
+  listCrudeProducts: (params?: { period_id?: string; crude_product_id?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.period_id) searchParams.set("period_id", params.period_id);
+    if (params?.crude_product_id) searchParams.set("crude_product_id", params.crude_product_id);
+    const qs = searchParams.toString();
+    return fetchApi<CrudeProductActualCost[]>(`/costs/actual/crude-products${qs ? `?${qs}` : ""}`);
+  },
+};
+
+// Variance Analysis
+export type VarianceType = "price" | "quantity" | "efficiency" | "mix" | "volume";
+
+export interface VarianceRecord {
+  id: string;
+  product_id: string;
+  cost_center_id: string | null;
+  period_id: string;
+  variance_type: VarianceType;
+  cost_element: string;
+  standard_amount: string;
+  actual_amount: string;
+  variance_amount: string;
+  variance_percent: string;
+  is_favorable: boolean;
+  is_flagged: boolean;
+  flag_reason: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CostElementVariance {
+  cost_element: string;
+  standard_amount: string;
+  actual_amount: string;
+  variance_amount: string;
+  variance_percent: string;
+  is_favorable: boolean;
+}
+
+export interface ProductVarianceDetail {
+  product_id: string;
+  product_code: string;
+  product_name: string;
+  cost_center_id: string | null;
+  cost_center_name: string | null;
+  total_standard: string;
+  total_actual: string;
+  total_variance: string;
+  total_variance_percent: string;
+  is_favorable: boolean;
+  elements: CostElementVariance[];
+}
+
+export interface VarianceAnalysisResult {
+  period_id: string;
+  products_analyzed: number;
+  records_created: number;
+  flagged_count: number;
+  total_standard: string;
+  total_actual: string;
+  total_variance: string;
+  details: ProductVarianceDetail[];
+}
+
+export interface VarianceSummaryItem {
+  cost_element: string;
+  total_standard: string;
+  total_actual: string;
+  total_variance: string;
+  average_variance_percent: string;
+  favorable_count: number;
+  unfavorable_count: number;
+  flagged_count: number;
+}
+
+export interface VarianceSummaryReport {
+  period_id: string;
+  total_products: number;
+  total_records: number;
+  total_flagged: number;
+  overall_standard: string;
+  overall_actual: string;
+  overall_variance: string;
+  by_element: VarianceSummaryItem[];
+}
+
+export const varianceApi = {
+  analyze: (data: { period_id: string; product_ids?: string[]; threshold_percent?: number }) =>
+    fetchApi<VarianceAnalysisResult>("/costs/variance/analyze", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  summary: (period_id: string) =>
+    fetchApi<VarianceSummaryReport>(`/costs/variance/summary?period_id=${period_id}`),
+  list: (params?: {
+    period_id?: string;
+    product_id?: string;
+    cost_element?: string;
+    is_flagged?: boolean;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.period_id) searchParams.set("period_id", params.period_id);
+    if (params?.product_id) searchParams.set("product_id", params.product_id);
+    if (params?.cost_element) searchParams.set("cost_element", params.cost_element);
+    if (params?.is_flagged !== undefined) searchParams.set("is_flagged", String(params.is_flagged));
+    const qs = searchParams.toString();
+    return fetchApi<VarianceRecord[]>(`/costs/variance${qs ? `?${qs}` : ""}`);
+  },
+  get: (id: string) => fetchApi<VarianceRecord>(`/costs/variance/${id}`),
+  update: (id: string, data: { is_flagged?: boolean; flag_reason?: string; notes?: string }) =>
+    fetchApi<VarianceRecord>(`/costs/variance/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+};
+
+// Imports
+export type ImportStatus = "pending" | "processing" | "completed" | "failed";
+
+export interface ImportError {
+  id: string;
+  row_number: number;
+  column_name: string | null;
+  error_message: string;
+  raw_data: Record<string, unknown> | null;
+}
+
+export interface ImportBatch {
+  id: string;
+  file_name: string;
+  source_system: string;
+  status: ImportStatus;
+  total_rows: number;
+  success_rows: number;
+  error_rows: number;
+  period_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  errors: ImportError[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ImportUploadResponse {
+  batch_id: string;
+  status: ImportStatus;
+  total_rows: number;
+  success_rows: number;
+  error_rows: number;
+  errors: ImportError[];
+  message: string;
+}
+
+async function fetchApiMultipart<T>(path: string, options?: RequestInit): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || `API Error: ${res.status}`);
+  }
+  return res.json();
+}
+
+export const importsApi = {
+  upload: (data: { file: File; source_system: string; period_id: string }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("source_system", data.source_system);
+    formData.append("period_id", data.period_id);
+    return fetchApiMultipart<ImportUploadResponse>("/imports/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  list: (params?: { source_system?: string; period_id?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.source_system) searchParams.set("source_system", params.source_system);
+    if (params?.period_id) searchParams.set("period_id", params.period_id);
+    const qs = searchParams.toString();
+    return fetchApi<ImportBatch[]>(`/imports${qs ? `?${qs}` : ""}`);
+  },
+  get: (id: string) => fetchApi<ImportBatch>(`/imports/${id}`),
+};

@@ -99,3 +99,42 @@ export const crudeProductTypeLabels: Record<string, string> = {
   GN: "ジンジャー",
   other: "その他",
 };
+
+/** Source system labels */
+export const sourceSystemLabels: Record<string, string> = {
+  geneki_db: "原液DB",
+  sc_system: "SC",
+  kanjyo_bugyo: "勘定奉行",
+  tsuhan21: "通販21",
+  romu_db: "労務DB",
+  product_db: "製品管理DB",
+  manual: "手動入力",
+};
+
+/** Import status labels */
+export const importStatusLabels: Record<string, string> = {
+  pending: "待機中",
+  processing: "処理中",
+  completed: "完了",
+  failed: "失敗",
+};
+
+/** Cost element labels */
+export const costElementLabels: Record<string, string> = {
+  material: "原材料費",
+  crude_product: "原体原価",
+  packaging: "資材費",
+  labor: "労務費",
+  overhead: "経費",
+  outsourcing: "外注加工費",
+  prior_process: "前工程費",
+};
+
+/** Variance type labels */
+export const varianceTypeLabels: Record<string, string> = {
+  price: "価格差異",
+  quantity: "数量差異",
+  efficiency: "能率差異",
+  mix: "配合差異",
+  volume: "操業度差異",
+};
