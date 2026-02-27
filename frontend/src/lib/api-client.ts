@@ -822,3 +822,57 @@ export const importsApi = {
   },
   get: (id: string) => fetchApi<ImportBatch>(`/imports/${id}`),
 };
+
+// AI Explanations (Phase 5)
+export type ReviewStatus = "pending" | "approved" | "rejected";
+
+export interface AIExplanation {
+  id: string;
+  context_type: string;
+  context_id: string | null;
+  prompt: string;
+  response: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  review_status: ReviewStatus;
+  reviewer_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIExplanationResponse {
+  explanation: AIExplanation;
+  message: string;
+}
+
+export const aiApi = {
+  explainVariance: (variance_record_id: string) =>
+    fetchApi<AIExplanationResponse>("/ai/explain/variance", {
+      method: "POST",
+      body: JSON.stringify({ variance_record_id }),
+    }),
+  explainPeriod: (period_id: string) =>
+    fetchApi<AIExplanationResponse>("/ai/explain/period", {
+      method: "POST",
+      body: JSON.stringify({ period_id }),
+    }),
+  ask: (data: { question: string; context_type?: string; context_id?: string }) =>
+    fetchApi<AIExplanationResponse>("/ai/ask", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listExplanations: (params?: { context_type?: string; review_status?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.context_type) searchParams.set("context_type", params.context_type);
+    if (params?.review_status) searchParams.set("review_status", params.review_status);
+    const qs = searchParams.toString();
+    return fetchApi<AIExplanation[]>(`/ai/explanations${qs ? `?${qs}` : ""}`);
+  },
+  getExplanation: (id: string) => fetchApi<AIExplanation>(`/ai/explanations/${id}`),
+  updateExplanation: (id: string, data: { review_status?: ReviewStatus; reviewer_notes?: string }) =>
+    fetchApi<AIExplanation>(`/ai/explanations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+};

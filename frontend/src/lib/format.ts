@@ -138,3 +138,10 @@ export const varianceTypeLabels: Record<string, string> = {
   mix: "配合差異",
   volume: "操業度差異",
 };
+
+/** Review status labels */
+export const reviewStatusLabels: Record<string, string> = {
+  pending: "レビュー待ち",
+  approved: "承認済み",
+  rejected: "却下",
+};

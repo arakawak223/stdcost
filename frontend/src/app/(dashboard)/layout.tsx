@@ -17,6 +17,7 @@ import {
   SplitSquareVertical,
   Wallet,
   DollarSign,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,7 @@ const analysisNavigation = [
   { name: "差異分析", href: "/variance-analysis", icon: TrendingUp },
   { name: "データ取込", href: "/imports", icon: Upload },
   { name: "実際原価", href: "/actual-costs", icon: DollarSign },
+  { name: "AIアシスタント", href: "/ai-assistant", icon: Bot },
 ];
 
 export default function DashboardLayout({
@@ -93,7 +95,7 @@ export default function DashboardLayout({
           {renderNavItems(analysisNavigation)}
         </nav>
         <div className="border-t p-4">
-          <p className="text-xs text-muted-foreground">Phase 4 - 差異分析・データ取込</p>
+          <p className="text-xs text-muted-foreground">Phase 5 - AI統合</p>
         </div>
       </aside>
 
