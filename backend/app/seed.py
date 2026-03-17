@@ -29,7 +29,7 @@ from app.models.master import (
     Product,
     ProductType,
 )
-from app.models.cost import StandardCost
+from app.models.cost import CrudeProductStandardCost, StandardCost
 
 
 async def seed_cost_centers(db: AsyncSession) -> None:
@@ -190,20 +190,26 @@ async def seed_crude_products(db: AsyncSession) -> None:
 
     # parent_crude_product_id を設定（主要な前工程の紐付け）
     cp_map = {cp.code: cp for cp in crude_products}
+    # Excel「BOM&原価標準 一覧」「フロー」シートに基づく前工程依存関係
+    # 列D = その原体を作る際の入力（前工程原体）
     parent_links = {
+        # R系メインライン: R1→R2→R3→R→Rリ→RB→P
         "R2": "R1", "R3": "R2", "R": "R3",
         "Rri": "R", "RB": "Rri", "P": "RB",
+        # R派生
         "Rma": "Rri", "MP": "Rma",
         "RG": "Rri", "RGI": "RG", "GP": "RGI",
-        "LPA": "Rri", "RX": "Rri",
+        "LPA": "Rri",
         "Rshi": "R", "PE": "Rshi",
         "FEB": "R", "T": "FEB",
-        "HI": "R", "HIA": "HI", "HIB": "HI", "HIR": "HI", "HIBkai": "HIB",
-        "G": "Rri", "GA": "G", "GB": "G",
-        "B": "Rri", "O": "Rri", "X": "Rri", "XC": "X",
-        "BM": "Rri", "FB": "Rri",
-        "PX": "RB", "PXA": "PX",
-        "plant": "Rri",
+        "RX": "R",
+        # HI系（独立仕込み → HIR→PX→PXA, HIA→HIB→HIB海→X→XC, HIB→B→BM）
+        "HIR": "HI", "PX": "HIR", "PXA": "PX",
+        "HIA": "HI", "HIB": "HIA", "HIBkai": "HIB",
+        "X": "HIBkai", "XC": "X",
+        "B": "HIB", "BM": "B",
+        # G系（独立仕込み → GA→GB→O→FB）
+        "GA": "G", "GB": "GA", "O": "GB", "FB": "O",
     }
     for child_code, parent_code in parent_links.items():
         child = cp_map.get(child_code)
@@ -654,10 +660,6 @@ async def seed_bom_data(db: AsyncSession) -> None:
     await _create_bom("LPA", BomType.crude_product_process, [
         ("@Rri", "1.0"), ("F01", "0.50", "kg", "0.02"),
     ], "0.9800")
-    # RX: Rリ派生（植物用）
-    await _create_bom("RX", BomType.crude_product_process, [
-        ("@Rri", "1.0"),
-    ], "0.9800")
     # Rシ: R + 生姜系
     await _create_bom("Rshi", BomType.crude_product_process, [
         ("@R", "1.0"), ("O04", "0.10", "kg", "0.02"),
@@ -674,52 +676,82 @@ async def seed_bom_data(db: AsyncSession) -> None:
     await _create_bom("T", BomType.crude_product_process, [
         ("@FEB", "1.0"),
     ], "0.9800")
-    # HI: R派生 ハイグレード
-    await _create_bom("HI", BomType.crude_product_process, [
-        ("@R", "1.0"), ("O03", "0.05", "kg", "0.01"),
+    # RX: R派生（植物用レギュラー）
+    await _create_bom("RX", BomType.crude_product_process, [
+        ("@R", "1.0"),
     ], "0.9800")
-    # HIA: HI派生
+    # === HI系（独立仕込み: 植物XX種類(*2)） ===
+    await _create_bom("HI", BomType.raw_material_process, r1_materials, "0.9500")
+    # HIR: HI → HIR
+    await _create_bom("HIR", BomType.crude_product_process, [
+        ("@HI", "1.0"),
+    ], "0.9900")
+    # PX: HIR → PX
+    await _create_bom("PX", BomType.crude_product_process, [
+        ("@HIR", "1.0"),
+    ], "0.9900")
+    # PXA: PX → PXA
+    await _create_bom("PXA", BomType.crude_product_process, [
+        ("@PX", "1.0"),
+    ], "0.9900")
+    # HIA: HI → HIA
     await _create_bom("HIA", BomType.crude_product_process, [
         ("@HI", "1.0"),
     ], "0.9900")
-    # HIB: HI派生
+    # HIB: HIA → HIB
     await _create_bom("HIB", BomType.crude_product_process, [
-        ("@HI", "1.0"),
+        ("@HIA", "1.0"),
     ], "0.9900")
-    # G: Rリ派生 ゴールド
-    await _create_bom("G", BomType.crude_product_process, [
-        ("@Rri", "1.0"), ("O03", "0.10", "kg", "0.01"),
-    ], "0.9800")
-    # B: Rリ派生
+    # HIB海: HIB → HIB海
+    await _create_bom("HIBkai", BomType.crude_product_process, [
+        ("@HIB", "1.0"),
+    ], "0.9900")
+    # X: HIB海 → X
+    await _create_bom("X", BomType.crude_product_process, [
+        ("@HIBkai", "1.0"),
+    ], "0.9900")
+    # XC: X → XC
+    await _create_bom("XC", BomType.crude_product_process, [
+        ("@X", "1.0"),
+    ], "0.9900")
+    # B: HIB → B
     await _create_bom("B", BomType.crude_product_process, [
-        ("@Rri", "1.0"),
-    ], "0.9800")
-    # FB: Rリ派生
-    await _create_bom("FB", BomType.crude_product_process, [
-        ("@Rri", "1.0"),
-    ], "0.9800")
-    # BM: Rリ派生
+        ("@HIB", "1.0"),
+    ], "0.9900")
+    # BM: B → BM
     await _create_bom("BM", BomType.crude_product_process, [
-        ("@Rri", "1.0"),
-    ], "0.9800")
-    # plant: Rリ派生 植物用ブレンド
-    await _create_bom("plant", BomType.crude_product_process, [
-        ("@Rri", "1.0"),
-    ], "0.9800")
+        ("@B", "1.0"),
+    ], "0.9900")
+    # === G系（独立仕込み: 植物XX種類(*3)） ===
+    await _create_bom("G", BomType.raw_material_process, r1_materials, "0.9500")
+    # GA: G → GA
+    await _create_bom("GA", BomType.crude_product_process, [
+        ("@G", "1.0"),
+    ], "0.9900")
+    # GB: GA → GB
+    await _create_bom("GB", BomType.crude_product_process, [
+        ("@GA", "1.0"),
+    ], "0.9900")
+    # O: GB → O
+    await _create_bom("O", BomType.crude_product_process, [
+        ("@GB", "1.0"),
+    ], "0.9900")
+    # FB: O → FB
+    await _create_bom("FB", BomType.crude_product_process, [
+        ("@O", "1.0"),
+    ], "0.9900")
+    # === 植物用ブレンド（独立: 前工程費=38期実績） ===
+    await _create_bom("plant", BomType.raw_material_process, r1_materials, "0.9500")
 
     await db.flush()
     print(f"  原体BOM: {bom_count}件 作成（多段階工程チェーン）")
 
     # === Stage 2: 製品BOM (product_process) ===
     # 製品BOM: 原体 + 資材 → 製品
-    # 製品記号→原体の対応（Excelの前工程費グラム単価から推定）:
-    #   5A→P系, B→HI, BE→G系, BM→特殊, C→Rshi系, D→B系, DC→G系
-    #   EB→FB系, GP→GP, KOL→LPA, MP→MP, O→O, P→P, PE→PE, T→T, etc.
-
-    # 製品記号 → 主要原体コードのマッピング
+    # 製品記号 → 主要仕掛品原体コードのマッピング（フロー図の製品行に対応）
     symbol_to_crude = {
-        "5A": "P", "B": "HI", "BE": "G", "BM": "BM", "C": "Rshi",
-        "D": "B", "DC": "G", "EB": "FB", "FB": "FB", "G": "G",
+        "5A": "P", "B": "B", "BE": "B", "BM": "BM", "C": "Rshi",
+        "D": "B", "DC": "B", "EB": "FB", "FB": "FB", "G": "G",
         "GP": "GP", "KOL": "LPA", "MP": "MP", "O": "O", "P": "P",
         "PE": "PE", "PG": "P", "PR": "P", "PSA": "P", "PX": "PX",
         "PXM": "PXA", "Q": "P", "T": "T", "V": "B", "X": "X",
@@ -873,6 +905,71 @@ async def seed_allocation_rules(db: AsyncSession) -> None:
     db.add_all(rules)
     await db.flush()
     print(f"  配賦ルール: {len(rules)}件 作成")
+
+
+async def seed_crude_product_standard_costs_39(db: AsyncSession) -> None:
+    """Excel「標準原価_仕掛品_2603v2.xlsx」の原体標準原価データを投入（設定済み分のみ）。"""
+    existing = await db.execute(select(CrudeProductStandardCost).limit(1))
+    if existing.scalar_one_or_none():
+        print("  原体標準原価: スキップ（既存データあり）")
+        return
+
+    result = await db.execute(
+        select(FiscalPeriod).where(FiscalPeriod.year == 39, FiscalPeriod.month == 1)
+    )
+    period_39 = result.scalar_one_or_none()
+    if not period_39:
+        print("  原体標準原価: スキップ（39期の会計期間なし）")
+        return
+
+    cps = await _get_map(db, CrudeProduct)
+    D = Decimal
+
+    # Excel「BOM&原価標準 一覧」+ 各標準原価カードシートから
+    # (原体code, 前工程費, 原材料費, 労務費, 経費, 計)
+    # 「ー」は0扱い、設定済み分のみ（計=0の原体はスキップ）
+    crude_std_data = [
+        # R1: 一次仕込み（原材料283, 労務103, 経費30）
+        ("R1", 0, 283, 103, 30, 416),
+        # R2: 二次仕込み（原材料533, 労務140, 経費60）
+        ("R2", 0, 533, 140, 60, 733),
+        # R3: 三次仕込み（原材料535, 労務114, 経費90）
+        ("R3", 0, 535, 114, 90, 739),
+        # R: 前工程878, 経費30
+        ("R", 878, 0, 0, 30, 908),
+        # Rリ: 前工程908, 原材料2, 労務254, 経費30
+        ("Rri", 908, 2, 254, 30, 1194),
+        # RB: 前工程1194, 労務0.4, 経費30
+        ("RB", 1194, 0, "0.4", 30, "1224.4"),
+        # P: 前工程1224.4, 労務282, 経費30
+        ("P", "1224.4", 0, 282, 30, "1536.4"),
+        # HI: 前工程1142, 労務4.08, 経費30
+        ("HI", 1142, 0, "4.08", 30, "1176.08"),
+        # 植物用ブレンド: 前工程1217, 経費30
+        ("plant", 1217, 0, 0, 30, 1247),
+    ]
+
+    count = 0
+    for code, mae, mat, roumu, keihi, total in crude_std_data:
+        cp = cps.get(code)
+        if not cp:
+            continue
+        db.add(CrudeProductStandardCost(
+            crude_product_id=cp.id,
+            period_id=period_39.id,
+            prior_process_cost=D(str(mae)),
+            material_cost=D(str(mat)),
+            labor_cost=D(str(roumu)),
+            overhead_cost=D(str(keihi)),
+            total_cost=D(str(total)),
+            unit_cost=D(str(total)),
+            standard_quantity=D("1"),
+            notes="Excel「標準原価_仕掛品_2603v2.xlsx」39期標準原価",
+        ))
+        count += 1
+
+    await db.flush()
+    print(f"  原体標準原価: {count}件 作成（設定済み分）")
 
 
 async def seed_standard_costs_39(db: AsyncSession) -> None:
@@ -1076,6 +1173,7 @@ async def main() -> None:
         await seed_bom_data(db)
         await seed_cost_budgets(db)
         await seed_allocation_rules(db)
+        await seed_crude_product_standard_costs_39(db)
         await seed_standard_costs_39(db)
         await db.commit()
     print("シードデータ投入完了")
