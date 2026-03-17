@@ -30,7 +30,7 @@ export default function StandardCostsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("crude");
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
 
-  const { data: periods } = useFiscalPeriods({ year: 38 });
+  const { data: periods } = useFiscalPeriods({});
   const { data: crudeProducts } = useCrudeProducts();
   const { data: products } = useProducts();
 
