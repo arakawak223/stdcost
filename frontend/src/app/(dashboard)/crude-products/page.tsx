@@ -50,11 +50,51 @@ export default function CrudeProductsPage() {
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
         >
           <option value="">全タイプ</option>
-          <option value="R">レギュラー</option>
-          <option value="HI">HI</option>
-          <option value="G">ゴールド</option>
-          <option value="SP">スペシャル</option>
-          <option value="GN">ジンジャー</option>
+          <optgroup label="仕込み工程">
+            <option value="R1">R1 一次仕込み</option>
+            <option value="R2">R2 二次仕込み</option>
+            <option value="R3">R3 三次仕込み</option>
+            <option value="R">R レギュラー</option>
+          </optgroup>
+          <optgroup label="R派生工程">
+            <option value="Rri">Rリ（リンゴ添加）</option>
+            <option value="RB">RB ブレンド</option>
+            <option value="Rma">Rマルベリー</option>
+            <option value="Rshi">Rシ（生姜系）</option>
+            <option value="RG">Rジンジャー</option>
+            <option value="RGI">RGI</option>
+            <option value="FEB">FEB</option>
+          </optgroup>
+          <optgroup label="HI系">
+            <option value="HI">HI</option>
+            <option value="HIA">HI-A</option>
+            <option value="HIB">HI-B</option>
+            <option value="HIR">HIR</option>
+            <option value="HIBkai">HIB海</option>
+          </optgroup>
+          <optgroup label="その他原液">
+            <option value="B">B</option>
+            <option value="G">ゴールド</option>
+            <option value="GA">GA</option>
+            <option value="GB">GB</option>
+            <option value="O">O</option>
+            <option value="X">X</option>
+            <option value="XC">XC</option>
+            <option value="BM">BM</option>
+            <option value="FB">FB</option>
+          </optgroup>
+          <optgroup label="製品用仕掛品">
+            <option value="P">P（定番）</option>
+            <option value="PX">PX</option>
+            <option value="PXA">PXA</option>
+            <option value="MP">MP マルベリー</option>
+            <option value="GP">GP ジンジャープラス</option>
+            <option value="LPA">LPA</option>
+            <option value="PE">PE（生姜系）</option>
+            <option value="T">T（畜産用）</option>
+            <option value="RX">RX（植物用）</option>
+            <option value="plant">植物用ブレンド</option>
+          </optgroup>
           <option value="other">その他</option>
         </select>
       </div>
@@ -65,10 +105,9 @@ export default function CrudeProductsPage() {
             <TableRow>
               <TableHead className="w-20">コード</TableHead>
               <TableHead>原体名</TableHead>
-              <TableHead className="w-20">タイプ</TableHead>
+              <TableHead className="w-28">タイプ</TableHead>
+              <TableHead className="w-16">工程</TableHead>
               <TableHead className="w-20">仕込期</TableHead>
-              <TableHead className="w-20">熟成年</TableHead>
-              <TableHead className="w-20">ブレンド</TableHead>
               <TableHead className="w-16">単位</TableHead>
               <TableHead className="w-20">状態</TableHead>
             </TableRow>
@@ -76,7 +115,7 @@ export default function CrudeProductsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   読込中...
                 </TableCell>
               </TableRow>
@@ -90,18 +129,11 @@ export default function CrudeProductsPage() {
                       {crudeProductTypeLabels[cp.crude_type] || cp.crude_type}
                     </Badge>
                   </TableCell>
+                  <TableCell className="font-mono text-center">
+                    {cp.process_stage ?? "-"}
+                  </TableCell>
                   <TableCell className="font-mono">
                     {cp.vintage_year ? `第${cp.vintage_year}期` : "-"}
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {cp.aging_years !== null ? `${cp.aging_years}年` : "-"}
-                  </TableCell>
-                  <TableCell>
-                    {cp.is_blend ? (
-                      <Badge variant="warning">ブレンド</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
                   </TableCell>
                   <TableCell>{cp.unit}</TableCell>
                   <TableCell>
@@ -113,7 +145,7 @@ export default function CrudeProductsPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   データがありません
                 </TableCell>
               </TableRow>

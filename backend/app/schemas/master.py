@@ -89,8 +89,10 @@ class MaterialRead(MaterialBase):
 class CrudeProductBase(BaseModel):
     code: str = Field(max_length=20)
     name: str = Field(max_length=200)
-    vintage_year: int | None = None
     crude_type: CrudeProductType
+    process_stage: int | None = None
+    parent_crude_product_id: uuid.UUID | None = None
+    vintage_year: int | None = None
     aging_years: int | None = None
     is_blend: bool = False
     blend_source_ids: str | None = None
@@ -105,8 +107,10 @@ class CrudeProductCreate(CrudeProductBase):
 
 class CrudeProductUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200)
-    vintage_year: int | None = None
     crude_type: CrudeProductType | None = None
+    process_stage: int | None = None
+    parent_crude_product_id: uuid.UUID | None = None
+    vintage_year: int | None = None
     aging_years: int | None = None
     is_blend: bool | None = None
     blend_source_ids: str | None = None

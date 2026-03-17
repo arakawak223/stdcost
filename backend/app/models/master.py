@@ -48,12 +48,54 @@ class MaterialType(str, enum.Enum):
 
 
 class CrudeProductType(str, enum.Enum):
-    """原体種別（発酵タイプ）"""
-    R = "R"        # レギュラー
-    HI = "HI"      # HI（ハイグレード）
-    G = "G"        # ゴールド
-    SP = "SP"      # スペシャル
-    GN = "GN"      # ジンジャー
+    """原体種別（加工工程タイプ）
+
+    Excelフロー図に基づく多段階加工チェーン:
+      R1→R2→R3→R→Rリ→RB→P  (メイン定番ライン)
+      R→Rシ→PE, R→FEB→T  (派生ライン)
+      Rリ→Rマ→MP, Rリ→RG→RGI→GP  (派生ライン)
+    """
+    # 仕込み工程（R系の多段階発酵）
+    R1 = "R1"          # 一次仕込み（植物XX種類）
+    R2 = "R2"          # 二次仕込み
+    R3 = "R3"          # 三次仕込み（R仕込中）
+    R = "R"             # レギュラー原体（熟成完了）
+    # R派生工程
+    Rri = "Rri"         # Rリ（リンゴ添加）
+    RB = "RB"           # Rブレンド
+    Rma = "Rma"         # Rマルベリー
+    Rshi = "Rshi"       # Rシ（生姜系）
+    RG = "RG"           # Rジンジャー
+    RGI = "RGI"         # RGI
+    FEB = "FEB"         # FEB
+    # HI系
+    HI = "HI"           # HI（ハイグレード）
+    HIA = "HIA"         # HI-A
+    HIB = "HIB"         # HI-B
+    HIR = "HIR"         # HIR
+    HIBkai = "HIBkai"   # HIB海
+    # その他原液タイプ
+    B = "B"             # B
+    G = "G"             # ゴールド
+    GA = "GA"           # GA
+    GB = "GB"           # GB
+    O = "O"             # O
+    X = "X"             # X
+    XC = "XC"           # XC
+    BM = "BM"           # BM
+    FB = "FB"           # FB
+    # 製品用仕掛品（製造部出力 → 製品課入力）
+    P = "P"             # P（定番製品用）
+    PX = "PX"           # PX
+    PXA = "PXA"         # PXA
+    MP = "MP"           # マルベリー製品用
+    GP = "GP"           # ジンジャープラス
+    LPA = "LPA"         # LPA
+    PE = "PE"           # PE（生姜系製品用）
+    T = "T"             # T（畜産用）
+    RX = "RX"           # RX（植物用レギュラー）
+    plant = "plant"     # 植物用ブレンド
+    # 汎用
     other = "other"
 
 
@@ -69,8 +111,9 @@ class ProductType(str, enum.Enum):
 
 
 class BomType(str, enum.Enum):
-    raw_material_process = "raw_material_process"  # 原体工程（原料→原体）
-    product_process = "product_process"            # 製品工程（原体→製品）
+    raw_material_process = "raw_material_process"      # 原料工程（原料→原体: R1の仕込み等）
+    crude_product_process = "crude_product_process"    # 原体工程（原体→原体: R→Rリ等の多段工程）
+    product_process = "product_process"                # 製品工程（原体→製品）
 
 
 class PeriodStatus(str, enum.Enum):
@@ -123,8 +166,12 @@ class Material(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class CrudeProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """原体（原液）マスタ - 万田発酵の中核。年度+タイプで管理（例: 38R, 38HI, 38G）
-    発酵食品は3年以上熟成される。前工程で複数原体をブレンドすることもある。"""
+    """原体（原液）マスタ - 万田発酵の中核。
+
+    加工工程チェーン: R1→R2→R3→R→Rリ→RB→P の多段階構造。
+    各原体は前工程の原体を入力として受け取り、自工程の費用を加算する。
+    vintage_year/aging_years は仕掛品の年度在庫管理に使用（工程定義とは独立）。
+    """
     __tablename__ = "crude_products"
     __table_args__ = (
         UniqueConstraint("code", name="uq_crude_product_code"),
@@ -132,14 +179,26 @@ class CrudeProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    vintage_year: Mapped[int | None] = mapped_column(Integer, comment="仕込み年度（和暦の年数、例: 38=第38期）")
     crude_type: Mapped[CrudeProductType] = mapped_column(Enum(CrudeProductType), nullable=False)
+    process_stage: Mapped[int | None] = mapped_column(
+        Integer, comment="工程段階（1=一次仕込み, 2=二次, ... DAGのトポロジカル順序）"
+    )
+    parent_crude_product_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("crude_products.id"), nullable=True,
+        comment="主要な前工程原体ID（UIツリー表示用。実際の依存関係はBOMで定義）"
+    )
+    # 仕掛品の年度在庫管理用（工程定義とは独立した次元）
+    vintage_year: Mapped[int | None] = mapped_column(Integer, comment="仕込み年度（和暦の年数、例: 38=第38期）")
     aging_years: Mapped[int | None] = mapped_column(Integer, comment="熟成年数")
     is_blend: Mapped[bool] = mapped_column(Boolean, default=False, comment="ブレンド品（前工程あり）かどうか")
     blend_source_ids: Mapped[str | None] = mapped_column(Text, comment="ブレンド元の原体コード（JSON配列）")
     unit: Mapped[str] = mapped_column(String(10), nullable=False, default="kg")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+
+    parent_crude_product: Mapped["CrudeProduct | None"] = relationship(
+        "CrudeProduct", remote_side="CrudeProduct.id", lazy="selectin"
+    )
 
 
 class Product(UUIDPrimaryKeyMixin, TimestampMixin, Base):

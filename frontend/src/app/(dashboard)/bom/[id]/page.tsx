@@ -102,12 +102,13 @@ export default function BomEditPage() {
                 value={bomType}
                 onChange={(e) => setBomType(e.target.value as BomType)}
               >
-                <option value="raw_material_process">原体工程（原料→原体）</option>
+                <option value="raw_material_process">原料工程（原料→原体）</option>
+                <option value="crude_product_process">原体工程（原体→原体）</option>
                 <option value="product_process">製品工程（原体→製品）</option>
               </select>
             </div>
 
-            {bomType === "raw_material_process" ? (
+            {bomType === "raw_material_process" || bomType === "crude_product_process" ? (
               <div className="space-y-2">
                 <Label>出力原体</Label>
                 <select

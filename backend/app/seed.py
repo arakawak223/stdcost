@@ -119,31 +119,99 @@ async def seed_crude_products(db: AsyncSession) -> None:
         print("  原体マスタ: スキップ（既存データあり）")
         return
 
-    # 万田発酵の原体（原液）: 年度+タイプで管理、3年以上熟成
+    # Excelフロー図に基づく多段階加工チェーン
+    # process_stage: DAG上の深さ（トポロジカルソートの順序指標）
+    # parent_crude_product_id: 主要な前工程（後でIDを紐付け）
     crude_products = [
-        # 第38期仕込み
-        CrudeProduct(code="38R", name="38期レギュラー原体", vintage_year=38, crude_type=CrudeProductType.R, aging_years=0, unit="kg"),
-        CrudeProduct(code="38HI", name="38期HI原体", vintage_year=38, crude_type=CrudeProductType.HI, aging_years=0, unit="kg"),
-        CrudeProduct(code="38G", name="38期ゴールド原体", vintage_year=38, crude_type=CrudeProductType.G, aging_years=0, unit="kg"),
-        CrudeProduct(code="38GN", name="38期ジンジャー原体", vintage_year=38, crude_type=CrudeProductType.GN, aging_years=0, unit="kg"),
-        # 第37期仕込み（熟成1年目）
-        CrudeProduct(code="37R", name="37期レギュラー原体", vintage_year=37, crude_type=CrudeProductType.R, aging_years=1, unit="kg"),
-        CrudeProduct(code="37HI", name="37期HI原体", vintage_year=37, crude_type=CrudeProductType.HI, aging_years=1, unit="kg"),
-        CrudeProduct(code="37G", name="37期ゴールド原体", vintage_year=37, crude_type=CrudeProductType.G, aging_years=1, unit="kg"),
-        # 第36期仕込み（熟成2年目）
-        CrudeProduct(code="36R", name="36期レギュラー原体", vintage_year=36, crude_type=CrudeProductType.R, aging_years=2, unit="kg"),
-        CrudeProduct(code="36HI", name="36期HI原体", vintage_year=36, crude_type=CrudeProductType.HI, aging_years=2, unit="kg"),
-        CrudeProduct(code="36G", name="36期ゴールド原体", vintage_year=36, crude_type=CrudeProductType.G, aging_years=2, unit="kg"),
-        # 第35期仕込み（熟成3年目、出荷可能）
-        CrudeProduct(code="35R", name="35期レギュラー原体", vintage_year=35, crude_type=CrudeProductType.R, aging_years=3, unit="kg"),
-        CrudeProduct(code="35HI", name="35期HI原体", vintage_year=35, crude_type=CrudeProductType.HI, aging_years=3, unit="kg"),
-        CrudeProduct(code="35G", name="35期ゴールド原体", vintage_year=35, crude_type=CrudeProductType.G, aging_years=3, unit="kg"),
-        # ブレンド品
-        CrudeProduct(code="35RHI", name="35期R+HIブレンド", vintage_year=35, crude_type=CrudeProductType.R, aging_years=3, is_blend=True, unit="kg",
-                     notes="35Rと35HIのブレンド"),
+        # === R系メインライン: R1→R2→R3→R→Rリ→RB→P ===
+        CrudeProduct(code="R1", name="一次仕込み（植物XX種類）", crude_type=CrudeProductType.R1, process_stage=1, unit="kg",
+                     notes="BOM標準: 原材料費283 + 労務費103 + 経費30 = 416円/kg"),
+        CrudeProduct(code="R2", name="二次仕込み", crude_type=CrudeProductType.R2, process_stage=2, unit="kg",
+                     notes="BOM標準: 前工程費+原材料費533 + 労務費140 + 経費60 = 733円/kg"),
+        CrudeProduct(code="R3", name="三次仕込み（R仕込中）", crude_type=CrudeProductType.R3, process_stage=3, unit="kg",
+                     notes="BOM標準: 前工程費+原材料費535 + 労務費114 + 経費90 = 739円/kg"),
+        CrudeProduct(code="R", name="レギュラー原体", crude_type=CrudeProductType.R, process_stage=4, unit="kg",
+                     notes="BOM標準: 前工程費878 + 経費30 = 908円/kg"),
+        CrudeProduct(code="Rri", name="Rリ（リンゴ添加）", crude_type=CrudeProductType.Rri, process_stage=5, unit="kg",
+                     notes="BOM標準: 前工程費908 + 原材料費2 + 労務費254 + 経費30 = 1194円/kg"),
+        CrudeProduct(code="RB", name="Rブレンド", crude_type=CrudeProductType.RB, process_stage=6, unit="kg",
+                     notes="実績単価: 954円/kg"),
+        CrudeProduct(code="P", name="P（定番製品用仕掛品）", crude_type=CrudeProductType.P, process_stage=7, unit="kg",
+                     notes="BOM標準: 前工程費884 + 労務費282 + 経費30 = 1196円/kg"),
+        # === R派生ライン ===
+        CrudeProduct(code="Rma", name="Rマルベリー", crude_type=CrudeProductType.Rma, process_stage=6, unit="kg",
+                     notes="Rリ + マルベリー原料。実績単価: 1048円/kg"),
+        CrudeProduct(code="MP", name="マルベリー製品用仕掛品", crude_type=CrudeProductType.MP, process_stage=7, unit="kg",
+                     notes="実績単価: 1180円/kg"),
+        CrudeProduct(code="RG", name="Rジンジャー", crude_type=CrudeProductType.RG, process_stage=6, unit="kg",
+                     notes="Rリ + ジンジャー。実績単価: 1052円/kg"),
+        CrudeProduct(code="RGI", name="RGI", crude_type=CrudeProductType.RGI, process_stage=7, unit="kg"),
+        CrudeProduct(code="GP", name="ジンジャープラス仕掛品", crude_type=CrudeProductType.GP, process_stage=8, unit="kg",
+                     notes="実績単価: 1395円/kg"),
+        CrudeProduct(code="LPA", name="LPA", crude_type=CrudeProductType.LPA, process_stage=6, unit="kg",
+                     notes="Rリ派生。実績単価: 1752円/kg"),
+        CrudeProduct(code="Rshi", name="Rシ（生姜系）", crude_type=CrudeProductType.Rshi, process_stage=5, unit="kg",
+                     notes="R + 生姜系添加。実績単価: 1054円/kg"),
+        CrudeProduct(code="PE", name="PE（生姜系製品用仕掛品）", crude_type=CrudeProductType.PE, process_stage=6, unit="kg",
+                     notes="実績単価: 1150円/kg"),
+        CrudeProduct(code="FEB", name="FEB", crude_type=CrudeProductType.FEB, process_stage=5, unit="kg",
+                     notes="R派生。実績単価: 1462円/kg"),
+        CrudeProduct(code="T", name="T（畜産用仕掛品）", crude_type=CrudeProductType.T, process_stage=6, unit="kg",
+                     notes="FEB派生。実績単価: 1580円/kg"),
+        CrudeProduct(code="RX", name="RX（植物用レギュラー）", crude_type=CrudeProductType.RX, process_stage=6, unit="kg",
+                     notes="Rリ派生。実績単価: 1244円/kg"),
+        # === HI系 ===
+        CrudeProduct(code="HI", name="HI（ハイグレード）", crude_type=CrudeProductType.HI, process_stage=5, unit="kg",
+                     notes="R派生のハイグレードライン。実績単価: 1142円/kg"),
+        CrudeProduct(code="HIA", name="HI-A", crude_type=CrudeProductType.HIA, process_stage=6, unit="kg",
+                     notes="実績単価: 1245円/kg"),
+        CrudeProduct(code="HIB", name="HI-B", crude_type=CrudeProductType.HIB, process_stage=6, unit="kg",
+                     notes="実績単価: 1362円/kg"),
+        CrudeProduct(code="HIR", name="HIR", crude_type=CrudeProductType.HIR, process_stage=6, unit="kg"),
+        CrudeProduct(code="HIBkai", name="HIB海", crude_type=CrudeProductType.HIBkai, process_stage=7, unit="kg"),
+        # === その他原液 ===
+        CrudeProduct(code="G", name="ゴールド", crude_type=CrudeProductType.G, process_stage=6, unit="kg",
+                     notes="実績単価: 1221円/kg"),
+        CrudeProduct(code="GA", name="GA", crude_type=CrudeProductType.GA, process_stage=7, unit="kg"),
+        CrudeProduct(code="GB", name="GB", crude_type=CrudeProductType.GB, process_stage=7, unit="kg"),
+        CrudeProduct(code="B", name="B", crude_type=CrudeProductType.B, process_stage=6, unit="kg"),
+        CrudeProduct(code="O", name="O", crude_type=CrudeProductType.O, process_stage=6, unit="kg"),
+        CrudeProduct(code="X", name="X", crude_type=CrudeProductType.X, process_stage=6, unit="kg"),
+        CrudeProduct(code="XC", name="XC", crude_type=CrudeProductType.XC, process_stage=7, unit="kg"),
+        CrudeProduct(code="BM", name="BM", crude_type=CrudeProductType.BM, process_stage=6, unit="kg"),
+        CrudeProduct(code="FB", name="FB", crude_type=CrudeProductType.FB, process_stage=6, unit="kg"),
+        CrudeProduct(code="PX", name="PX", crude_type=CrudeProductType.PX, process_stage=7, unit="kg"),
+        CrudeProduct(code="PXA", name="PXA", crude_type=CrudeProductType.PXA, process_stage=8, unit="kg"),
+        CrudeProduct(code="plant", name="植物用ブレンド", crude_type=CrudeProductType.plant, process_stage=6, unit="kg"),
     ]
     db.add_all(crude_products)
-    print(f"  原体マスタ: {len(crude_products)}件 作成")
+    await db.flush()
+
+    # parent_crude_product_id を設定（主要な前工程の紐付け）
+    cp_map = {cp.code: cp for cp in crude_products}
+    parent_links = {
+        "R2": "R1", "R3": "R2", "R": "R3",
+        "Rri": "R", "RB": "Rri", "P": "RB",
+        "Rma": "Rri", "MP": "Rma",
+        "RG": "Rri", "RGI": "RG", "GP": "RGI",
+        "LPA": "Rri", "RX": "Rri",
+        "Rshi": "R", "PE": "Rshi",
+        "FEB": "R", "T": "FEB",
+        "HI": "R", "HIA": "HI", "HIB": "HI", "HIR": "HI", "HIBkai": "HIB",
+        "G": "Rri", "GA": "G", "GB": "G",
+        "B": "Rri", "O": "Rri", "X": "Rri", "XC": "X",
+        "BM": "Rri", "FB": "Rri",
+        "PX": "RB", "PXA": "PX",
+        "plant": "Rri",
+    }
+    for child_code, parent_code in parent_links.items():
+        child = cp_map.get(child_code)
+        parent = cp_map.get(parent_code)
+        if child and parent:
+            child.parent_crude_product_id = parent.id
+
+    await db.flush()
+    print(f"  原体マスタ: {len(crude_products)}件 作成（多段階工程チェーン）")
 
 
 async def seed_products(db: AsyncSession) -> None:
@@ -152,35 +220,266 @@ async def seed_products(db: AsyncSession) -> None:
         print("  製品マスタ: スキップ（既存データあり）")
         return
 
-    # 万田発酵の製品ラインナップ
+    # Excel「標準原価_製品_2603.xlsx」の全111製品を実SCコードで登録
+    D = Decimal
+    PRD = ProductType.in_house_product_dept
+
     products = [
-        # 半製品（中間製品）
-        Product(code="HP01", name="万田酵素ペースト原液", product_type=ProductType.semi_finished, product_group="半製品", unit="kg", sc_code="HP001"),
-        Product(code="HP02", name="万田酵素ドリンク原液", product_type=ProductType.semi_finished, product_group="半製品", unit="kg", sc_code="HP002"),
-        # 内製品（製品課）- メイン製品ライン
-        Product(code="ME01", name="万田酵素スタンダード ペースト 150g", product_type=ProductType.in_house_product_dept, product_group="万田酵素", unit="個", sc_code="ME001", content_weight_g=Decimal("150"), product_symbol="MEP150"),
-        Product(code="ME02", name="万田酵素スタンダード ペースト 75g", product_type=ProductType.in_house_product_dept, product_group="万田酵素", unit="個", sc_code="ME002", content_weight_g=Decimal("75"), product_symbol="MEP075"),
-        Product(code="ME03", name="万田酵素スタンダード 分包 2.5g×31包", product_type=ProductType.in_house_product_dept, product_group="万田酵素", unit="個", sc_code="ME003", content_weight_g=Decimal("77.5"), product_symbol="MEB031"),
-        Product(code="ME04", name="万田酵素スタンダード 分包 2.5g×60包", product_type=ProductType.in_house_product_dept, product_group="万田酵素", unit="個", sc_code="ME004", content_weight_g=Decimal("150"), product_symbol="MEB060"),
-        Product(code="MG01", name="万田酵素GINGER ペースト 75g", product_type=ProductType.in_house_product_dept, product_group="万田酵素GINGER", unit="個", sc_code="MG001", content_weight_g=Decimal("75"), product_symbol="MGP075"),
-        Product(code="MG02", name="万田酵素GINGER 分包 2.5g×31包", product_type=ProductType.in_house_product_dept, product_group="万田酵素GINGER", unit="個", sc_code="MG002", content_weight_g=Decimal("77.5"), product_symbol="MGB031"),
-        Product(code="MH01", name="万田酵素MULBERRY ペースト 150g", product_type=ProductType.in_house_product_dept, product_group="万田酵素MULBERRY", unit="個", sc_code="MH001", content_weight_g=Decimal("150"), product_symbol="MHP150"),
-        Product(code="MH02", name="万田酵素MULBERRY 分包 2.5g×31包", product_type=ProductType.in_house_product_dept, product_group="万田酵素MULBERRY", unit="個", sc_code="MH002", content_weight_g=Decimal("77.5"), product_symbol="MHB031"),
-        Product(code="MD01", name="万田酵素ドリンク 50ml", product_type=ProductType.in_house_product_dept, product_group="ドリンク", unit="個", sc_code="MD001", content_weight_g=Decimal("50"), product_symbol="MDD050"),
-        Product(code="MD02", name="万田酵素ドリンク 150ml", product_type=ProductType.in_house_product_dept, product_group="ドリンク", unit="個", sc_code="MD002", content_weight_g=Decimal("150"), product_symbol="MDD150"),
-        # 内製品（製造部）
-        Product(code="MM01", name="万田酵素 農業用1kg", product_type=ProductType.in_house_manufacturing, product_group="農業用", unit="個", sc_code="MM001", content_weight_g=Decimal("1000")),
-        Product(code="MM02", name="万田酵素 農業用5kg", product_type=ProductType.in_house_manufacturing, product_group="農業用", unit="個", sc_code="MM002", content_weight_g=Decimal("5000")),
-        # 外注品
-        Product(code="OS01", name="万田酵素プラス温 粒 210粒", product_type=ProductType.outsourced, product_group="外注品", unit="個", sc_code="OS001"),
-        Product(code="OS02", name="万田酵素ゼリータイプ 10g×31包", product_type=ProductType.outsourced, product_group="外注品", unit="個", sc_code="OS002"),
-        # 外注内製
-        Product(code="OI01", name="万田酵素化粧品 クリーム 30g", product_type=ProductType.outsourced_in_house, product_group="化粧品", unit="個", sc_code="OI001", content_weight_g=Decimal("30")),
-        # 産品
-        Product(code="PR01", name="万田31号（肥料）", product_type=ProductType.produce, product_group="産品", unit="袋", sc_code="PR001"),
+        # === 5A (2品) ===
+        Product(code="20051200013", name="MKF-Ⅰ 分包150g(AAAAA)", product_type=PRD, product_group="5A",
+                sc_code="20051200013", content_weight_g=D("150"), product_symbol="5A", unit="個"),
+        Product(code="20071100007", name="MKF-Ⅰ携帯ﾊﾟｯｸ 50g(5A)", product_type=PRD, product_group="5A",
+                sc_code="20071100007", content_weight_g=D("50"), product_symbol="5A", unit="個"),
+        # === B (4品) ===
+        Product(code="20051200005", name="万田HI酵素 分包150g", product_type=PRD, product_group="B",
+                sc_code="20051200005", content_weight_g=D("150"), product_symbol="B", unit="個"),
+        Product(code="20071000005", name="試供品 HI酵素 5g", product_type=PRD, product_group="B",
+                sc_code="20071000005", content_weight_g=D("5"), product_symbol="B", unit="個"),
+        Product(code="20110800311", name="MANDA HI KOHSO", product_type=PRD, product_group="B",
+                sc_code="20110800311", content_weight_g=D("145"), product_symbol="B", unit="個"),
+        Product(code="20110800629", name="万田HI酵素 145g", product_type=PRD, product_group="B",
+                sc_code="20110800629", content_weight_g=D("145"), product_symbol="B", unit="個"),
+        # === BE (3品) ===
+        Product(code="20200800016", name="万田酵素ｴｸｾﾚﾝﾄ 145g", product_type=PRD, product_group="BE",
+                sc_code="20200800016", content_weight_g=D("145"), product_symbol="BE", unit="個"),
+        Product(code="20200800017", name="万田酵素ｴｸｾﾚﾝﾄ 分包30g（2.5g×12包）", product_type=PRD, product_group="BE",
+                sc_code="20200800017", content_weight_g=D("30"), product_symbol="BE", unit="個"),
+        Product(code="20200800018", name="万田酵素ｴｸｾﾚﾝﾄ 分包450g", product_type=PRD, product_group="BE",
+                sc_code="20200800018", content_weight_g=D("450"), product_symbol="BE", unit="個"),
+        # === BM (1品) ===
+        Product(code="20240100051", name="万田酵素 MANUKA HONEY Premium 分包77.5g", product_type=PRD, product_group="BM",
+                sc_code="20240100051", content_weight_g=D("77.5"), product_symbol="BM", unit="個"),
+        # === C (1品) ===
+        Product(code="20110300008", name="Man-Koso CARAT 145g", product_type=PRD, product_group="C",
+                sc_code="20110300008", content_weight_g=D("145"), product_symbol="C", unit="個"),
+        # === D (2品) ===
+        Product(code="20200200001", name="万田酵素超熟分包77.5g", product_type=PRD, product_group="D",
+                sc_code="20200200001", content_weight_g=D("77.5"), product_symbol="D", unit="個"),
+        Product(code="20200200003", name="万田酵素超熟分包2.5g×5", product_type=PRD, product_group="D",
+                sc_code="20200200003", content_weight_g=D("12.5"), product_symbol="D", unit="個"),
+        # === DC (2品) ===
+        Product(code="20211100014", name="特選EXプラス分包70g(2.5g×28包)", product_type=PRD, product_group="DC",
+                sc_code="20211100014", content_weight_g=D("70"), product_symbol="DC", unit="個"),
+        Product(code="20211100015", name="特選EXプラス分包150g(2.5g×60包)", product_type=PRD, product_group="DC",
+                sc_code="20211100015", content_weight_g=D("150"), product_symbol="DC", unit="個"),
+        # === EB (4品) ===
+        Product(code="20071200005", name="試供品 ｽｰﾊﾟｰ万田酵素(赤) 5g", product_type=PRD, product_group="EB",
+                sc_code="20071200005", content_weight_g=D("5"), product_symbol="EB", unit="個"),
+        Product(code="20231100072", name="ｽｰﾊﾟｰ万田酵素 分包 35g", product_type=PRD, product_group="EB",
+                sc_code="20231100072", content_weight_g=D("35"), product_symbol="EB", unit="個"),
+        Product(code="20231100073", name="ｽｰﾊﾟｰ万田酵素 分包150g", product_type=PRD, product_group="EB",
+                sc_code="20231100073", content_weight_g=D("150"), product_symbol="EB", unit="個"),
+        Product(code="20231100074", name="ｽｰﾊﾟｰ万田酵素 分包450g", product_type=PRD, product_group="EB",
+                sc_code="20231100074", content_weight_g=D("450"), product_symbol="EB", unit="個"),
+        # === FB (2品) ===
+        Product(code="20220600066", name="ｺﾞｰﾙﾄﾞEX155g", product_type=PRD, product_group="FB",
+                sc_code="20220600066", content_weight_g=D("155"), product_symbol="FB", unit="個"),
+        Product(code="20221200022", name="ｺﾞｰﾙﾄﾞEX300g", product_type=PRD, product_group="FB",
+                sc_code="20221200022", content_weight_g=D("300"), product_symbol="FB", unit="個"),
+        # === G (2品) ===
+        Product(code="20080100003", name="試供品 万田酵素 MJ(5g)", product_type=PRD, product_group="G",
+                sc_code="20080100003", content_weight_g=D("5"), product_symbol="G", unit="個"),
+        Product(code="20110800295", name="万田酵素 MJ", product_type=PRD, product_group="G",
+                sc_code="20110800295", content_weight_g=D("90"), product_symbol="G", unit="個"),
+        # === GP (5品) ===
+        Product(code="20231100078", name="発酵しょうが 2.5g 支給用", product_type=PRD, product_group="GP",
+                sc_code="20231100078", content_weight_g=D("2.5"), product_symbol="GP", unit="個"),
+        Product(code="20230600044", name="万田酵素 ﾌﾟﾗｽ温 発酵しょうが 77.5g", product_type=PRD, product_group="GP",
+                sc_code="20230600044", content_weight_g=D("77.5"), product_symbol="GP", unit="個"),
+        Product(code="20230600045", name="万田酵素 ﾌﾟﾗｽ温 発酵しょうが 20g", product_type=PRD, product_group="GP",
+                sc_code="20230600045", content_weight_g=D("20"), product_symbol="GP", unit="個"),
+        Product(code="20230600046", name="試供品 ﾌﾟﾗｽ温発酵しょうが 2.5g", product_type=PRD, product_group="GP",
+                sc_code="20230600046", content_weight_g=D("2.5"), product_symbol="GP", unit="個"),
+        Product(code="20241200012", name="万田酵素ﾌﾟﾗｽ温発酵しょうが 75g 5g×15包", product_type=PRD, product_group="GP",
+                sc_code="20241200012", content_weight_g=D("75"), product_symbol="GP", unit="個"),
+        # === KOL (3品) ===
+        Product(code="20231200033", name="万田酵素分包75g （中国虹越）", product_type=PRD, product_group="KOL",
+                sc_code="20231200033", content_weight_g=D("75"), product_symbol="KOL", unit="個"),
+        Product(code="20241100041", name="試供品 万田酵素分包5g(中国虹越)", product_type=PRD, product_group="KOL",
+                sc_code="20241100041", content_weight_g=D("5"), product_symbol="KOL", unit="個"),
+        Product(code="20250300087", name="万田酵素 分包150g (中国)", product_type=PRD, product_group="KOL",
+                sc_code="20250300087", content_weight_g=D("150"), product_symbol="KOL", unit="個"),
+        # === MP (7品) ===
+        Product(code="20171000004", name="万田酵素 MULBERRY 分包 77.5g", product_type=PRD, product_group="MP",
+                sc_code="20171000004", content_weight_g=D("77.5"), product_symbol="MP", unit="個"),
+        Product(code="20171000006", name="万田酵素 MULBERRY 分包20g", product_type=PRD, product_group="MP",
+                sc_code="20171000006", content_weight_g=D("20"), product_symbol="MP", unit="個"),
+        Product(code="20171000010", name="万田酵素 MULBERRY ﾁｭｰﾌﾞﾀｲﾌﾟ 26×3本", product_type=PRD, product_group="MP",
+                sc_code="20171000010", content_weight_g=D("78"), product_symbol="MP", unit="個"),
+        Product(code="20181100045", name="万田酵素 MULBERRY 分包35g 2.5g×14包", product_type=PRD, product_group="MP",
+                sc_code="20181100045", content_weight_g=D("35"), product_symbol="MP", unit="個"),
+        Product(code="20200200034", name="万田酵素MULBERRY 分包 10g 2.5×4包", product_type=PRD, product_group="MP",
+                sc_code="20200200034", content_weight_g=D("10"), product_symbol="MP", unit="個"),
+        Product(code="20220100027", name="MULBERRY 2.5g 支給用", product_type=PRD, product_group="MP",
+                sc_code="20220100027", content_weight_g=D("2.5"), product_symbol="MP", unit="個"),
+        Product(code="20230900058", name="万田酵素 MULBERRY 分包12.5g", product_type=PRD, product_group="MP",
+                sc_code="20230900058", content_weight_g=D("12.5"), product_symbol="MP", unit="個"),
+        # === O (5品) ===
+        Product(code="20060200007", name="万田酵素 金印145g", product_type=PRD, product_group="O",
+                sc_code="20060200007", content_weight_g=D("145"), product_symbol="O", unit="個"),
+        Product(code="20071000014", name="試供品 金印 5g", product_type=PRD, product_group="O",
+                sc_code="20071000014", content_weight_g=D("5"), product_symbol="O", unit="個"),
+        Product(code="20071100028", name="万田酵素 金印 分包150g", product_type=PRD, product_group="O",
+                sc_code="20071100028", content_weight_g=D("150"), product_symbol="O", unit="個"),
+        Product(code="20110800312", name="MANDA KOHSO GOLD 145g", product_type=PRD, product_group="O",
+                sc_code="20110800312", content_weight_g=D("145"), product_symbol="O", unit="個"),
+        Product(code="20140100011", name="Man-Koso GOLD 145g", product_type=PRD, product_group="O",
+                sc_code="20140100011", content_weight_g=D("145"), product_symbol="O", unit="個"),
+        # === P (14品) ===
+        Product(code="20061200012", name="万田酵素 145g(販売店向け)", product_type=PRD, product_group="P",
+                sc_code="20061200012", content_weight_g=D("145"), product_symbol="P", unit="個"),
+        Product(code="20070300033", name="万田酵素 分包150g(販売店向け)", product_type=PRD, product_group="P",
+                sc_code="20070300033", content_weight_g=D("150"), product_symbol="P", unit="個"),
+        Product(code="20080100023", name="試供品 万田酵素 5g(販売店向け)", product_type=PRD, product_group="P",
+                sc_code="20080100023", content_weight_g=D("5"), product_symbol="P", unit="個"),
+        Product(code="20090100014", name="万田酵素 300g(販売店限定品)", product_type=PRD, product_group="P",
+                sc_code="20090100014", content_weight_g=D("300"), product_symbol="P", unit="個"),
+        Product(code="20090300004", name="万田酵素 分包50g", product_type=PRD, product_group="P",
+                sc_code="20090300004", content_weight_g=D("50"), product_symbol="P", unit="個"),
+        Product(code="20110300007", name="Man-Koso PREMIUM 145g", product_type=PRD, product_group="P",
+                sc_code="20110300007", content_weight_g=D("145"), product_symbol="P", unit="個"),
+        Product(code="20110800918", name="Man-Koso PREMIUM 分包150g", product_type=PRD, product_group="P",
+                sc_code="20110800918", content_weight_g=D("150"), product_symbol="P", unit="個"),
+        Product(code="20210700007", name="MKﾐｸｽﾁｬｰ(ﾍﾟｰｽﾄ) 1kg 中栓付き容器", product_type=PRD, product_group="P",
+                sc_code="20210700007", content_weight_g=D("1000"), product_symbol="P", unit="個"),
+        Product(code="20220100030", name="P 2.5g×2 支給用", product_type=PRD, product_group="P",
+                sc_code="20220100030", content_weight_g=D("5"), product_symbol="P", unit="個"),
+        Product(code="20221200036", name="植物発酵エキス 万田酵素", product_type=PRD, product_group="P",
+                sc_code="20221200036", content_weight_g=D("1000"), product_symbol="P", unit="個"),
+        Product(code="20230700024", name="万田酵素(宇宙用)", product_type=PRD, product_group="P",
+                sc_code="20230700024", content_weight_g=D("5"), product_symbol="P", unit="個"),
+        Product(code="20240400018", name="万田酵素（宇宙用）2.5g×4包 店頭販売用", product_type=PRD, product_group="P",
+                sc_code="20240400018", content_weight_g=D("10"), product_symbol="P", unit="個"),
+        Product(code="20240400019", name="万田酵素（宇宙用）2.5g×8包 ｲﾍﾞﾝﾄｺﾗﾎﾞ用", product_type=PRD, product_group="P",
+                sc_code="20240400019", content_weight_g=D("20"), product_symbol="P", unit="個"),
+        Product(code="20240400020", name="万田酵素(宇宙用) 2.5g×8包 通信販売用", product_type=PRD, product_group="P",
+                sc_code="20240400020", content_weight_g=D("20"), product_symbol="P", unit="個"),
+        # === PE (8品) ===
+        Product(code="20170400004", name="試供品 万田酵素 GINGER 2.5g", product_type=PRD, product_group="PE",
+                sc_code="20170400004", content_weight_g=D("2.5"), product_symbol="PE", unit="個"),
+        Product(code="20170400005", name="万田酵素 GINGER 分包20g", product_type=PRD, product_group="PE",
+                sc_code="20170400005", content_weight_g=D("20"), product_symbol="PE", unit="個"),
+        Product(code="20170400006", name="万田酵素GINGER分包77.5g", product_type=PRD, product_group="PE",
+                sc_code="20170400006", content_weight_g=D("77.5"), product_symbol="PE", unit="個"),
+        Product(code="20170400017", name="万田酵素 GINGER 分包 35g", product_type=PRD, product_group="PE",
+                sc_code="20170400017", content_weight_g=D("35"), product_symbol="PE", unit="個"),
+        Product(code="20171000009", name="万田酵素GINGERﾁｭｰﾌﾞﾀｲﾌﾟ26×3本", product_type=PRD, product_group="PE",
+                sc_code="20171000009", content_weight_g=D("78"), product_symbol="PE", unit="個"),
+        Product(code="20181100042", name="万田酵素 GINGER2.5g×4包", product_type=PRD, product_group="PE",
+                sc_code="20181100042", content_weight_g=D("10"), product_symbol="PE", unit="個"),
+        Product(code="20190100014", name="万田酵素GINGER分包50g", product_type=PRD, product_group="PE",
+                sc_code="20190100014", content_weight_g=D("50"), product_symbol="PE", unit="個"),
+        Product(code="20220100028", name="GINGER 2.5g 支給用", product_type=PRD, product_group="PE",
+                sc_code="20220100028", content_weight_g=D("2.5"), product_symbol="PE", unit="個"),
+        # === PG (5品) ===
+        Product(code="20050700013", name="万田酵素 ｊ 分包150g", product_type=PRD, product_group="PG",
+                sc_code="20050700013", content_weight_g=D("150"), product_symbol="PG", unit="個"),
+        Product(code="20080300003", name="試供品 万田酵素 ｊ 5g", product_type=PRD, product_group="PG",
+                sc_code="20080300003", content_weight_g=D("5"), product_symbol="PG", unit="個"),
+        Product(code="20091200010", name="MANDA CARE PLUS 75g(梅)", product_type=PRD, product_group="PG",
+                sc_code="20091200010", content_weight_g=D("75"), product_symbol="PG", unit="個"),
+        Product(code="20091200011", name="MANDA CARE PLUS 5g(梅)", product_type=PRD, product_group="PG",
+                sc_code="20091200011", content_weight_g=D("5"), product_symbol="PG", unit="個"),
+        Product(code="20221100028", name="万田酵素 j 分包50g", product_type=PRD, product_group="PG",
+                sc_code="20221100028", content_weight_g=D("50"), product_symbol="PG", unit="個"),
+        # === PR (2品) ===
+        Product(code="20091200015", name="ﾅﾁｭﾗﾙ酵素ﾌﾞﾙｰﾍﾞﾘｰﾌﾟﾗｽ 分包150g", product_type=PRD, product_group="PR",
+                sc_code="20091200015", content_weight_g=D("150"), product_symbol="PR", unit="個"),
+        Product(code="20091200016", name="試供品 ﾅﾁｭﾗﾙ酵素ﾌﾞﾙｰﾍﾞﾘｰﾌﾟﾗｽ 5g", product_type=PRD, product_group="PR",
+                sc_code="20091200016", content_weight_g=D("5"), product_symbol="PR", unit="個"),
+        # === PSA (3品) ===
+        Product(code="20120900082", name="NONI酵素 分包60g", product_type=PRD, product_group="PSA",
+                sc_code="20120900082", content_weight_g=D("60"), product_symbol="PSA", unit="個"),
+        Product(code="20130100001", name="NONI酵素 300g ファミリーサイズ", product_type=PRD, product_group="PSA",
+                sc_code="20130100001", content_weight_g=D("300"), product_symbol="PSA", unit="個"),
+        Product(code="20240600040", name="NONI酵素 分包14g 2g×7包", product_type=PRD, product_group="PSA",
+                sc_code="20240600040", content_weight_g=D("14"), product_symbol="PSA", unit="個"),
+        # === PX (8品) ===
+        Product(code="20170400007", name="試供品 万田酵素 STANDARD 2.5g", product_type=PRD, product_group="PX",
+                sc_code="20170400007", content_weight_g=D("2.5"), product_symbol="PX", unit="個"),
+        Product(code="20170400008", name="万田酵素 STANDARD 分包20g", product_type=PRD, product_group="PX",
+                sc_code="20170400008", content_weight_g=D("20"), product_symbol="PX", unit="個"),
+        Product(code="20170400009", name="万田酵素STANDARD分包77.5g", product_type=PRD, product_group="PX",
+                sc_code="20170400009", content_weight_g=D("77.5"), product_symbol="PX", unit="個"),
+        Product(code="20170400016", name="万田酵素 STANDARD 分包35g", product_type=PRD, product_group="PX",
+                sc_code="20170400016", content_weight_g=D("35"), product_symbol="PX", unit="個"),
+        Product(code="20171000008", name="万田酵素STANDARDﾁｭｰﾌﾞﾀｲﾌﾟ26×3本", product_type=PRD, product_group="PX",
+                sc_code="20171000008", content_weight_g=D("78"), product_symbol="PX", unit="個"),
+        Product(code="20180500084", name="万田酵素 STANDARD 分包50g", product_type=PRD, product_group="PX",
+                sc_code="20180500084", content_weight_g=D("50"), product_symbol="PX", unit="個"),
+        Product(code="20181100040", name="万田酵素 STANDARD2.5g×4包", product_type=PRD, product_group="PX",
+                sc_code="20181100040", content_weight_g=D("10"), product_symbol="PX", unit="個"),
+        Product(code="20191200078", name="MANDA WELLNESS SUPERFOOD 31×2.5", product_type=PRD, product_group="PX",
+                sc_code="20191200078", content_weight_g=D("77.5"), product_symbol="PX", unit="個"),
+        # === PXM (3品) ===
+        Product(code="20201100053", name="万田酵素MANUKA HONEY 分包77.5g", product_type=PRD, product_group="PXM",
+                sc_code="20201100053", content_weight_g=D("77.5"), product_symbol="PXM", unit="個"),
+        Product(code="20201100054", name="試供品 万田酵素MANUKA HONEY 分包2.5g", product_type=PRD, product_group="PXM",
+                sc_code="20201100054", content_weight_g=D("2.5"), product_symbol="PXM", unit="個"),
+        Product(code="20220700012", name="万田酵素 ﾏﾇｶﾊﾆｰBlend 50g", product_type=PRD, product_group="PXM",
+                sc_code="20220700012", content_weight_g=D("50"), product_symbol="PXM", unit="個"),
+        # === Q (1品) ===
+        Product(code="20080700007", name="ﾊﾞｲｵ・EX 125g", product_type=PRD, product_group="Q",
+                sc_code="20080700007", content_weight_g=D("125"), product_symbol="Q", unit="個"),
+        # === T (4品) ===
+        Product(code="20120500014", name="植物性発酵物（A飼料）1kg", product_type=PRD, product_group="T",
+                sc_code="20120500014", content_weight_g=D("1000"), product_symbol="T", unit="個"),
+        Product(code="20120800030", name="マンダアニモ 650g", product_type=PRD, product_group="T",
+                sc_code="20120800030", content_weight_g=D("650"), product_symbol="T", unit="個"),
+        Product(code="20241000066", name="馬用万田酵素 1kg", product_type=PRD, product_group="T",
+                sc_code="20241000066", content_weight_g=D("1000"), product_symbol="T", unit="個"),
+        Product(code="20250400005", name="馬用万田酵素 10kg", product_type=PRD, product_group="T",
+                sc_code="20250400005", content_weight_g=D("10000"), product_symbol="T", unit="個"),
+        # === V (4品) ===
+        Product(code="20080700011", name="試供品 ｽｰﾊﾟｰ氣Ⅰ 5g", product_type=PRD, product_group="V",
+                sc_code="20080700011", content_weight_g=D("5"), product_symbol="V", unit="個"),
+        Product(code="20080800002", name="ｽｰﾊﾟｰ万田酵素氣Ⅰ 35g", product_type=PRD, product_group="V",
+                sc_code="20080800002", content_weight_g=D("35"), product_symbol="V", unit="個"),
+        Product(code="20081200016", name="ｽｰﾊﾟｰ氣Ⅰ 分包600g(150g×4箱)", product_type=PRD, product_group="V",
+                sc_code="20081200016", content_weight_g=D("600"), product_symbol="V", unit="個"),
+        Product(code="20110800272", name="ｽｰﾊﾟｰ万田酵素 氣Ⅰ", product_type=PRD, product_group="V",
+                sc_code="20110800272", content_weight_g=D("175"), product_symbol="V", unit="個"),
+        # === X (6品) ===
+        Product(code="20060800006", name="試供品 万田31号 1ml×6", product_type=PRD, product_group="X",
+                sc_code="20060800006", content_weight_g=D("7.8"), product_symbol="X", unit="個"),
+        Product(code="20081200013", name="万田31号 100ml", product_type=PRD, product_group="X",
+                sc_code="20081200013", content_weight_g=D("130"), product_symbol="X", unit="個"),
+        Product(code="20081200014", name="万田31号 500ml", product_type=PRD, product_group="X",
+                sc_code="20081200014", content_weight_g=D("650"), product_symbol="X", unit="個"),
+        Product(code="20081200019", name="万田31号 1ﾘｯﾄﾙ", product_type=PRD, product_group="X",
+                sc_code="20081200019", content_weight_g=D("1300"), product_symbol="X", unit="個"),
+        Product(code="20230300008", name="健康農業のための万田酵素 500ml", product_type=PRD, product_group="X",
+                sc_code="20230300008", content_weight_g=D("650"), product_symbol="X", unit="個"),
+        Product(code="20241200064", name="万田ｸﾞﾘｰﾝｷｰﾊﾟｰ 200ml", product_type=PRD, product_group="X",
+                sc_code="20241200064", content_weight_g=D("260"), product_symbol="X", unit="個"),
+        # === XC (3品) ===
+        Product(code="20160900041", name="万田31号500ml(韓国向)", product_type=PRD, product_group="XC",
+                sc_code="20160900041", content_weight_g=D("650"), product_symbol="XC", unit="個"),
+        Product(code="20160900042", name="万田31号1ﾘｯﾄﾙ(韓国向)", product_type=PRD, product_group="XC",
+                sc_code="20160900042", content_weight_g=D("1300"), product_symbol="XC", unit="個"),
+        Product(code="20200300074", name="万田31号50ml(韓国向け)", product_type=PRD, product_group="XC",
+                sc_code="20200300074", content_weight_g=D("65"), product_symbol="XC", unit="個"),
+        # === Y (3品) ===
+        Product(code="20051000011", name="MANDA L5000 450g(海外向け)", product_type=PRD, product_group="Y",
+                sc_code="20051000011", content_weight_g=D("450"), product_symbol="Y", unit="個"),
+        Product(code="20120300038", name="Man-Koso LIFE 450g", product_type=PRD, product_group="Y",
+                sc_code="20120300038", content_weight_g=D("450"), product_symbol="Y", unit="個"),
+        Product(code="20240500062", name="試供品 MANDA L5000 5g", product_type=PRD, product_group="Y",
+                sc_code="20240500062", content_weight_g=D("5"), product_symbol="Y", unit="個"),
+        # === YA (1品) ===
+        Product(code="20060100007", name="新･MKF-Ⅱ 30g", product_type=PRD, product_group="YA",
+                sc_code="20060100007", content_weight_g=D("30"), product_symbol="YA", unit="個"),
+        # === YC (1品) ===
+        Product(code="20090100015", name="MKF-Ⅱ5A ﾘｷｯﾄﾞ 30g", product_type=PRD, product_group="YC",
+                sc_code="20090100015", content_weight_g=D("30"), product_symbol="YC", unit="個"),
+        # === ZA (2品) ===
+        Product(code="20091200012", name="MANDA CARE PLUS 75g(ﾊﾟﾊﾟｲﾔ･ｺｺｱ)", product_type=PRD, product_group="ZA",
+                sc_code="20091200012", content_weight_g=D("75"), product_symbol="ZA", unit="個"),
+        Product(code="20091200013", name="MANDA CARE PLUS 5g(ﾊﾟﾊﾟｲﾔ･ｺｺｱ)", product_type=PRD, product_group="ZA",
+                sc_code="20091200013", content_weight_g=D("5"), product_symbol="ZA", unit="個"),
     ]
     db.add_all(products)
-    print(f"  製品マスタ: {len(products)}件 作成")
+    print(f"  製品マスタ: {len(products)}件 作成（Excel全製品SCコード）")
 
 
 async def seed_contractors(db: AsyncSession) -> None:
@@ -240,7 +539,13 @@ async def _get_map(db: AsyncSession, model, key_attr: str = "code") -> dict[str,
 
 
 async def seed_bom_data(db: AsyncSession) -> None:
-    """Seed BOM headers and lines for crude products (Stage 1) and products (Stage 2)."""
+    """Seed BOM headers and lines: multi-stage crude product chain + product BOMs.
+
+    BOM types:
+      - raw_material_process: R1の仕込み（原料→原体）
+      - crude_product_process: R2以降の多段工程（原体→原体）
+      - product_process: 製品工程（原体→製品）
+    """
     existing = await db.execute(select(BomHeader).limit(1))
     if existing.scalar_one_or_none():
         print("  BOMデータ: スキップ（既存データあり）")
@@ -252,145 +557,182 @@ async def seed_bom_data(db: AsyncSession) -> None:
 
     eff_date = date(2024, 10, 1)  # 第38期開始日
 
-    # === Stage 1: 原体BOM (raw_material_process) ===
-    # Each crude product's BOM: which raw materials go in
-    crude_bom_defs = {
-        "38R": [
-            ("F01", "5.0", "kg", "0.02"), ("F02", "3.0", "kg", "0.02"), ("F03", "2.0", "kg", "0.03"),
-            ("V01", "2.0", "kg", "0.01"), ("V02", "1.5", "kg", "0.01"), ("G01", "3.0", "kg", "0.01"),
-            ("S01", "0.5", "kg", "0.02"), ("O01", "8.0", "kg", "0.005"),
-        ],
-        "38HI": [
-            ("F01", "6.0", "kg", "0.02"), ("F06", "4.0", "kg", "0.03"), ("F07", "3.0", "kg", "0.03"),
-            ("F09", "2.0", "kg", "0.02"), ("V01", "2.0", "kg", "0.01"), ("G01", "4.0", "kg", "0.01"),
-            ("S03", "1.0", "kg", "0.02"), ("O01", "10.0", "kg", "0.005"), ("O03", "1.0", "kg", "0.01"),
-        ],
-        "38G": [
-            ("F01", "8.0", "kg", "0.02"), ("F06", "5.0", "kg", "0.03"), ("F07", "4.0", "kg", "0.03"),
-            ("F09", "3.0", "kg", "0.02"), ("F11", "2.0", "kg", "0.03"), ("V01", "2.0", "kg", "0.01"),
-            ("G01", "5.0", "kg", "0.01"), ("S01", "1.0", "kg", "0.02"), ("S03", "1.0", "kg", "0.02"),
-            ("O01", "12.0", "kg", "0.005"), ("O03", "2.0", "kg", "0.01"),
-        ],
-        "38GN": [
-            ("F01", "4.0", "kg", "0.02"), ("F02", "2.0", "kg", "0.02"), ("V01", "1.5", "kg", "0.01"),
-            ("G01", "2.0", "kg", "0.01"), ("O01", "6.0", "kg", "0.005"), ("O04", "5.0", "kg", "0.02"),
-        ],
-        "37R": [
-            ("F01", "5.0", "kg", "0.02"), ("F02", "3.0", "kg", "0.02"), ("F05", "2.0", "kg", "0.02"),
-            ("V01", "2.0", "kg", "0.01"), ("V07", "1.0", "kg", "0.01"), ("G01", "3.0", "kg", "0.01"),
-            ("S02", "0.5", "kg", "0.02"), ("O01", "8.0", "kg", "0.005"),
-        ],
-        "37HI": [
-            ("F01", "6.0", "kg", "0.02"), ("F06", "4.0", "kg", "0.03"), ("F07", "3.0", "kg", "0.03"),
-            ("V01", "2.0", "kg", "0.01"), ("G01", "4.0", "kg", "0.01"), ("S03", "1.0", "kg", "0.02"),
-            ("O01", "10.0", "kg", "0.005"),
-        ],
-        "37G": [
-            ("F01", "8.0", "kg", "0.02"), ("F06", "5.0", "kg", "0.03"), ("F09", "3.0", "kg", "0.02"),
-            ("V01", "2.0", "kg", "0.01"), ("G01", "5.0", "kg", "0.01"), ("S01", "1.0", "kg", "0.02"),
-            ("O01", "12.0", "kg", "0.005"), ("O03", "1.5", "kg", "0.01"),
-        ],
-        "36R": [
-            ("F01", "5.0", "kg", "0.02"), ("F03", "2.5", "kg", "0.03"), ("F05", "2.0", "kg", "0.02"),
-            ("V01", "2.0", "kg", "0.01"), ("G01", "3.0", "kg", "0.01"), ("S02", "0.5", "kg", "0.02"),
-            ("O01", "8.0", "kg", "0.005"),
-        ],
-        "36HI": [
-            ("F01", "6.0", "kg", "0.02"), ("F06", "4.0", "kg", "0.03"), ("F07", "3.0", "kg", "0.03"),
-            ("V01", "2.0", "kg", "0.01"), ("G01", "4.0", "kg", "0.01"), ("O01", "10.0", "kg", "0.005"),
-        ],
-        "36G": [
-            ("F01", "8.0", "kg", "0.02"), ("F06", "5.0", "kg", "0.03"), ("F07", "4.0", "kg", "0.03"),
-            ("V01", "2.0", "kg", "0.01"), ("G01", "5.0", "kg", "0.01"), ("O01", "12.0", "kg", "0.005"),
-        ],
-        "35R": [
-            ("F01", "5.0", "kg", "0.02"), ("F02", "3.0", "kg", "0.02"), ("F04", "2.0", "kg", "0.02"),
-            ("V01", "2.0", "kg", "0.01"), ("G02", "2.0", "kg", "0.01"), ("S01", "0.5", "kg", "0.02"),
-            ("O01", "8.0", "kg", "0.005"),
-        ],
-        "35HI": [
-            ("F01", "6.0", "kg", "0.02"), ("F06", "4.0", "kg", "0.03"), ("F13", "2.0", "kg", "0.03"),
-            ("V01", "2.0", "kg", "0.01"), ("G01", "4.0", "kg", "0.01"), ("S03", "1.0", "kg", "0.02"),
-            ("O01", "10.0", "kg", "0.005"),
-        ],
-        "35G": [
-            ("F01", "8.0", "kg", "0.02"), ("F06", "5.0", "kg", "0.03"), ("F07", "4.0", "kg", "0.03"),
-            ("F09", "3.0", "kg", "0.02"), ("V01", "2.0", "kg", "0.01"), ("G01", "5.0", "kg", "0.01"),
-            ("S01", "1.0", "kg", "0.02"), ("O01", "12.0", "kg", "0.005"),
-        ],
-    }
+    # === 原料工程 (raw_material_process): R1 の仕込み ===
+    # R1: 植物XX種類を投入 → BOM標準: 原材料費283円/kg
+    r1_materials = [
+        ("F01", "5.0", "kg", "0.02"), ("F02", "3.0", "kg", "0.02"), ("F03", "2.0", "kg", "0.03"),
+        ("F05", "2.0", "kg", "0.02"), ("F06", "1.5", "kg", "0.03"), ("F08", "1.0", "kg", "0.02"),
+        ("V01", "2.0", "kg", "0.01"), ("V02", "1.5", "kg", "0.01"), ("V05", "1.0", "kg", "0.01"),
+        ("G01", "3.0", "kg", "0.01"), ("G03", "1.0", "kg", "0.01"),
+        ("S01", "0.5", "kg", "0.02"), ("S02", "0.3", "kg", "0.02"),
+        ("O01", "8.0", "kg", "0.005"),
+    ]
 
     bom_count = 0
-    for cp_code, lines in crude_bom_defs.items():
+
+    async def _create_bom(cp_code: str, bom_type: BomType, lines_def: list, yield_rate: str = "0.9500") -> None:
+        nonlocal bom_count
         cp = cps.get(cp_code)
         if not cp:
-            continue
+            return
         header = BomHeader(
-            crude_product_id=cp.id,
-            bom_type=BomType.raw_material_process,
-            effective_date=eff_date,
-            yield_rate=Decimal("0.9500"),
+            crude_product_id=cp.id, bom_type=bom_type,
+            effective_date=eff_date, yield_rate=Decimal(yield_rate),
         )
         db.add(header)
         await db.flush()
-
-        for i, (mat_code, qty, unit, loss) in enumerate(lines):
-            mat = mats.get(mat_code)
-            if not mat:
-                continue
-            db.add(BomLine(
-                header_id=header.id,
-                material_id=mat.id,
-                quantity=Decimal(qty),
-                unit=unit,
-                loss_rate=Decimal(loss),
-                sort_order=i + 1,
-            ))
+        for i, line in enumerate(lines_def):
+            if line[0].startswith("@"):
+                # @CP_CODE: crude product input
+                src_cp = cps.get(line[0][1:])
+                if src_cp:
+                    db.add(BomLine(header_id=header.id, crude_product_id=src_cp.id,
+                                   quantity=Decimal(line[1]), unit="kg", sort_order=i + 1))
+            else:
+                # Material input
+                mat = mats.get(line[0])
+                if mat:
+                    loss = line[3] if len(line) > 3 else "0.0000"
+                    db.add(BomLine(header_id=header.id, material_id=mat.id,
+                                   quantity=Decimal(line[1]), unit=line[2],
+                                   loss_rate=Decimal(loss), sort_order=i + 1))
         bom_count += 1
 
-    # Blend BOM: 35RHI uses 35R and 35HI as inputs
-    blend_cp = cps.get("35RHI")
-    r_cp = cps.get("35R")
-    hi_cp = cps.get("35HI")
-    if blend_cp and r_cp and hi_cp:
-        header = BomHeader(
-            crude_product_id=blend_cp.id,
-            bom_type=BomType.raw_material_process,
-            effective_date=eff_date,
-            yield_rate=Decimal("0.9800"),
-        )
-        db.add(header)
-        await db.flush()
-        db.add(BomLine(header_id=header.id, crude_product_id=r_cp.id, quantity=Decimal("6.0"), unit="kg", sort_order=1))
-        db.add(BomLine(header_id=header.id, crude_product_id=hi_cp.id, quantity=Decimal("4.0"), unit="kg", sort_order=2))
-        bom_count += 1
+    # R1: 原料→原体 (raw_material_process)
+    await _create_bom("R1", BomType.raw_material_process, r1_materials)
+
+    # === 原体工程 (crude_product_process): R2以降の多段工程 ===
+    # R2: R1 + 追加原料
+    await _create_bom("R2", BomType.crude_product_process, [
+        ("@R1", "1.0"), ("O01", "2.0", "kg", "0.005"), ("F01", "1.0", "kg", "0.02"),
+    ], "0.9700")
+    # R3: R2 + 追加（三次仕込み）
+    await _create_bom("R3", BomType.crude_product_process, [
+        ("@R2", "1.0"), ("O01", "1.0", "kg", "0.005"),
+    ], "0.9800")
+    # R: R3 熟成完了
+    await _create_bom("R", BomType.crude_product_process, [
+        ("@R3", "1.0"),
+    ], "0.9900")
+    # Rリ: R + リンゴ
+    await _create_bom("Rri", BomType.crude_product_process, [
+        ("@R", "1.0"), ("F01", "0.01", "kg", "0.01"),
+    ], "0.9800")
+    # RB: Rリ ブレンド
+    await _create_bom("RB", BomType.crude_product_process, [
+        ("@Rri", "1.0"),
+    ], "0.9900")
+    # P: RB → 定番製品用仕掛品
+    await _create_bom("P", BomType.crude_product_process, [
+        ("@RB", "1.0"),
+    ], "0.9800")
+    # Rマ: Rリ + マルベリー原料
+    await _create_bom("Rma", BomType.crude_product_process, [
+        ("@Rri", "1.0"), ("O02", "0.05", "kg", "0.02"),
+    ], "0.9800")
+    # MP: Rマ → マルベリー製品用
+    await _create_bom("MP", BomType.crude_product_process, [
+        ("@Rma", "1.0"),
+    ], "0.9800")
+    # RG: Rリ + ジンジャー
+    await _create_bom("RG", BomType.crude_product_process, [
+        ("@Rri", "1.0"), ("O04", "0.10", "kg", "0.02"),
+    ], "0.9800")
+    # RGI: RG + 追加
+    await _create_bom("RGI", BomType.crude_product_process, [
+        ("@RG", "1.0"),
+    ], "0.9900")
+    # GP: RGI → ジンジャープラス
+    await _create_bom("GP", BomType.crude_product_process, [
+        ("@RGI", "1.0"),
+    ], "0.9800")
+    # LPA: Rリ派生
+    await _create_bom("LPA", BomType.crude_product_process, [
+        ("@Rri", "1.0"), ("F01", "0.50", "kg", "0.02"),
+    ], "0.9800")
+    # RX: Rリ派生（植物用）
+    await _create_bom("RX", BomType.crude_product_process, [
+        ("@Rri", "1.0"),
+    ], "0.9800")
+    # Rシ: R + 生姜系
+    await _create_bom("Rshi", BomType.crude_product_process, [
+        ("@R", "1.0"), ("O04", "0.10", "kg", "0.02"),
+    ], "0.9800")
+    # PE: Rシ → 生姜系製品用
+    await _create_bom("PE", BomType.crude_product_process, [
+        ("@Rshi", "1.0"),
+    ], "0.9800")
+    # FEB: R派生
+    await _create_bom("FEB", BomType.crude_product_process, [
+        ("@R", "1.0"), ("O01", "0.50", "kg", "0.005"),
+    ], "0.9800")
+    # T: FEB → 畜産用
+    await _create_bom("T", BomType.crude_product_process, [
+        ("@FEB", "1.0"),
+    ], "0.9800")
+    # HI: R派生 ハイグレード
+    await _create_bom("HI", BomType.crude_product_process, [
+        ("@R", "1.0"), ("O03", "0.05", "kg", "0.01"),
+    ], "0.9800")
+    # HIA: HI派生
+    await _create_bom("HIA", BomType.crude_product_process, [
+        ("@HI", "1.0"),
+    ], "0.9900")
+    # HIB: HI派生
+    await _create_bom("HIB", BomType.crude_product_process, [
+        ("@HI", "1.0"),
+    ], "0.9900")
+    # G: Rリ派生 ゴールド
+    await _create_bom("G", BomType.crude_product_process, [
+        ("@Rri", "1.0"), ("O03", "0.10", "kg", "0.01"),
+    ], "0.9800")
+    # B: Rリ派生
+    await _create_bom("B", BomType.crude_product_process, [
+        ("@Rri", "1.0"),
+    ], "0.9800")
+    # FB: Rリ派生
+    await _create_bom("FB", BomType.crude_product_process, [
+        ("@Rri", "1.0"),
+    ], "0.9800")
+    # BM: Rリ派生
+    await _create_bom("BM", BomType.crude_product_process, [
+        ("@Rri", "1.0"),
+    ], "0.9800")
+    # plant: Rリ派生 植物用ブレンド
+    await _create_bom("plant", BomType.crude_product_process, [
+        ("@Rri", "1.0"),
+    ], "0.9800")
 
     await db.flush()
-    print(f"  原体BOM: {bom_count}件 作成")
+    print(f"  原体BOM: {bom_count}件 作成（多段階工程チェーン）")
 
     # === Stage 2: 製品BOM (product_process) ===
-    # Product BOM: which crude products and packaging materials go in
-    # Using 35R/35HI/35G (3+ years aged, ready for products)
-    product_bom_defs = {
-        "HP01": {"crude": [("35R", "100.0")], "pkg": []},
-        "HP02": {"crude": [("35R", "50.0"), ("35HI", "50.0")], "pkg": []},
-        "ME01": {"crude": [("35R", "0.150")], "pkg": [("P01", "1.0", "0.01"), ("P04", "1.0", "0.005"), ("P06", "1.0", "0.01")]},
-        "ME02": {"crude": [("35R", "0.075")], "pkg": [("P01", "1.0", "0.01"), ("P04", "1.0", "0.005"), ("P06", "1.0", "0.01")]},
-        "ME03": {"crude": [("35R", "0.0775")], "pkg": [("P02", "31.0", "0.01"), ("P04", "1.0", "0.005")]},
-        "ME04": {"crude": [("35R", "0.150")], "pkg": [("P02", "60.0", "0.01"), ("P04", "1.0", "0.005")]},
-        "MG01": {"crude": [("38GN", "0.075")], "pkg": [("P01", "1.0", "0.01"), ("P04", "1.0", "0.005"), ("P06", "1.0", "0.01")]},
-        "MG02": {"crude": [("38GN", "0.0775")], "pkg": [("P02", "31.0", "0.01"), ("P04", "1.0", "0.005")]},
-        "MH01": {"crude": [("35HI", "0.150")], "pkg": [("P01", "1.0", "0.01"), ("P04", "1.0", "0.005"), ("P06", "1.0", "0.01")]},
-        "MH02": {"crude": [("35HI", "0.0775")], "pkg": [("P02", "31.0", "0.01"), ("P04", "1.0", "0.005")]},
-        "MD01": {"crude": [("35R", "0.025"), ("35HI", "0.025")], "pkg": [("P03", "1.0", "0.01"), ("P06", "1.0", "0.01")]},
-        "MD02": {"crude": [("35R", "0.075"), ("35HI", "0.075")], "pkg": [("P03", "1.0", "0.01"), ("P06", "1.0", "0.01")]},
-        "MM01": {"crude": [("35R", "1.0")], "pkg": [("P05", "1.0", "0.005")]},
-        "MM02": {"crude": [("35R", "5.0")], "pkg": [("P05", "1.0", "0.005")]},
-        "OS01": {"crude": [("35G", "0.063")], "pkg": [("P04", "1.0", "0.005")]},
-        "OS02": {"crude": [("35R", "0.100")], "pkg": [("P04", "1.0", "0.005")]},
-        "OI01": {"crude": [("35G", "0.015")], "pkg": [("P04", "1.0", "0.005")]},
-        "PR01": {"crude": [("35R", "0.500")], "pkg": [("P05", "1.0", "0.005")]},
+    # 製品BOM: 原体 + 資材 → 製品
+    # 製品記号→原体の対応（Excelの前工程費グラム単価から推定）:
+    #   5A→P系, B→HI, BE→G系, BM→特殊, C→Rshi系, D→B系, DC→G系
+    #   EB→FB系, GP→GP, KOL→LPA, MP→MP, O→O, P→P, PE→PE, T→T, etc.
+
+    # 製品記号 → 主要原体コードのマッピング
+    symbol_to_crude = {
+        "5A": "P", "B": "HI", "BE": "G", "BM": "BM", "C": "Rshi",
+        "D": "B", "DC": "G", "EB": "FB", "FB": "FB", "G": "G",
+        "GP": "GP", "KOL": "LPA", "MP": "MP", "O": "O", "P": "P",
+        "PE": "PE", "PG": "P", "PR": "P", "PSA": "P", "PX": "PX",
+        "PXM": "PXA", "Q": "P", "T": "T", "V": "B", "X": "X",
+        "XC": "XC", "Y": "Rri", "YA": "Rri", "YC": "Rri", "ZA": "P",
     }
+
+    # BOMを自動生成: 各製品の内容量(g)をkg換算して原体入力量とする
+    product_bom_defs = {}
+    for prod in prods.values():
+        if not prod.content_weight_g or not prod.product_symbol:
+            continue
+        crude_code = symbol_to_crude.get(prod.product_symbol, "P")
+        weight_kg = str((prod.content_weight_g / Decimal("1000")).quantize(Decimal("0.000001")))
+        product_bom_defs[prod.code] = {
+            "crude": [(crude_code, weight_kg)],
+            "pkg": [("P01", "1.0", "0.01"), ("P06", "1.0", "0.01")],
+        }
 
     prod_bom_count = 0
     for prod_code, bom_def in product_bom_defs.items():

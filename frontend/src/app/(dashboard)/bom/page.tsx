@@ -18,7 +18,8 @@ import { Plus, Trash2 } from "lucide-react";
 import type { BomType } from "@/lib/api-client";
 
 const bomTypeLabels: Record<string, string> = {
-  raw_material_process: "原体工程",
+  raw_material_process: "原料工程",
+  crude_product_process: "原体工程（多段）",
   product_process: "製品工程",
 };
 
@@ -57,7 +58,14 @@ export default function BomListPage() {
           size="sm"
           onClick={() => setBomType("raw_material_process")}
         >
-          原体工程
+          原料工程
+        </Button>
+        <Button
+          variant={bomType === "crude_product_process" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setBomType("crude_product_process")}
+        >
+          原体工程（多段）
         </Button>
         <Button
           variant={bomType === "product_process" ? "default" : "outline"}

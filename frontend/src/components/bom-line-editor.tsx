@@ -11,14 +11,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Trash2, Plus } from "lucide-react";
-import type { BomLineCreate, Material, CrudeProduct } from "@/lib/api-client";
+import type { BomLineCreate, BomType, Material, CrudeProduct } from "@/lib/api-client";
 
 interface BomLineEditorProps {
   lines: BomLineCreate[];
   onChange: (lines: BomLineCreate[]) => void;
   materials: Material[];
   crudeProducts: CrudeProduct[];
-  bomType: "raw_material_process" | "product_process";
+  bomType: BomType;
 }
 
 export function BomLineEditor({
@@ -53,9 +53,16 @@ export function BomLineEditor({
   };
 
   // For raw_material_process: materials (raw) are inputs
+  // For crude_product_process: crude_products and materials (raw) are inputs
   // For product_process: crude_products and materials (packaging) are inputs
   const rawMaterials = materials.filter((m) => m.material_type === "raw");
   const packagingMaterials = materials.filter((m) => m.material_type === "packaging");
+
+  const showCrudeProductColumn = bomType === "product_process" || bomType === "crude_product_process";
+  const materialOptions = bomType === "raw_material_process" || bomType === "crude_product_process"
+    ? rawMaterials
+    : packagingMaterials;
+  const materialColumnLabel = bomType === "product_process" ? "資材" : "原材料";
 
   return (
     <div className="space-y-2">
@@ -63,12 +70,10 @@ export function BomLineEditor({
         <TableHeader>
           <TableRow>
             <TableHead className="w-8">#</TableHead>
-            {bomType === "product_process" && (
-              <TableHead>原体</TableHead>
+            {showCrudeProductColumn && (
+              <TableHead>原体（前工程）</TableHead>
             )}
-            <TableHead>
-              {bomType === "raw_material_process" ? "原材料" : "資材"}
-            </TableHead>
+            <TableHead>{materialColumnLabel}</TableHead>
             <TableHead className="w-28">数量</TableHead>
             <TableHead className="w-20">単位</TableHead>
             <TableHead className="w-24">ロス率</TableHead>
@@ -79,7 +84,7 @@ export function BomLineEditor({
           {lines.map((line, index) => (
             <TableRow key={index}>
               <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-              {bomType === "product_process" && (
+              {showCrudeProductColumn && (
                 <TableCell>
                   <select
                     className="w-full rounded border bg-background px-2 py-1 text-sm"
@@ -104,13 +109,13 @@ export function BomLineEditor({
                   value={line.material_id || ""}
                   onChange={(e) => {
                     updateLine(index, "material_id", e.target.value || "");
-                    if (e.target.value && bomType === "product_process") {
+                    if (e.target.value && showCrudeProductColumn) {
                       updateLine(index, "crude_product_id", "");
                     }
                   }}
                 >
                   <option value="">--</option>
-                  {(bomType === "raw_material_process" ? rawMaterials : packagingMaterials).map(
+                  {materialOptions.map(
                     (m) => (
                       <option key={m.id} value={m.id}>
                         {m.code} - {m.name} ({m.unit})

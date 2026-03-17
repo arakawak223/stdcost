@@ -92,11 +92,46 @@ export const productTypeLabels: Record<string, string> = {
 
 /** Crude product type labels */
 export const crudeProductTypeLabels: Record<string, string> = {
+  // 仕込み工程
+  R1: "一次仕込み",
+  R2: "二次仕込み",
+  R3: "三次仕込み",
   R: "レギュラー",
+  // R派生工程
+  Rri: "Rリ（リンゴ添加）",
+  RB: "Rブレンド",
+  Rma: "Rマルベリー",
+  Rshi: "Rシ（生姜系）",
+  RG: "Rジンジャー",
+  RGI: "RGI",
+  FEB: "FEB",
+  // HI系
   HI: "HI",
+  HIA: "HI-A",
+  HIB: "HI-B",
+  HIR: "HIR",
+  HIBkai: "HIB海",
+  // その他原液
+  B: "B",
   G: "ゴールド",
-  SP: "スペシャル",
-  GN: "ジンジャー",
+  GA: "GA",
+  GB: "GB",
+  O: "O",
+  X: "X",
+  XC: "XC",
+  BM: "BM",
+  FB: "FB",
+  // 製品用仕掛品
+  P: "P（定番製品用）",
+  PX: "PX",
+  PXA: "PXA",
+  MP: "マルベリー製品用",
+  GP: "ジンジャープラス",
+  LPA: "LPA",
+  PE: "PE（生姜系）",
+  T: "T（畜産用）",
+  RX: "RX（植物用）",
+  plant: "植物用ブレンド",
   other: "その他",
 };
 

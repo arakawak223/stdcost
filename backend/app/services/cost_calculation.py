@@ -1,10 +1,13 @@
 """Standard cost calculation engine.
 
-2-stage standard cost calculation:
-  Stage 1: 製造部（原体原価） - raw materials → crude products
+Multi-stage standard cost calculation:
+  Stage 1: 製造部（原体原価） - 多段階の原体工程をトポロジカルソートで処理
+    - raw_material_process: 原料→原体（R1の仕込み等）
+    - crude_product_process: 原体→原体（R→Rリ等の多段工程）
   Stage 2: 製品課（製品原価） - crude products + packaging → finished products
 """
 
+from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy import select
@@ -47,10 +50,11 @@ def _resolve_material_price(
     return D(str(base_price))
 
 
-async def _load_bom_headers(db: AsyncSession, bom_type: BomType) -> list[BomHeader]:
+async def _load_bom_headers(db: AsyncSession, bom_types: list[BomType]) -> list[BomHeader]:
+    """Load active BOM headers for the given types, newest effective_date first."""
     result = await db.execute(
         select(BomHeader)
-        .where(BomHeader.bom_type == bom_type, BomHeader.is_active == True)
+        .where(BomHeader.bom_type.in_(bom_types), BomHeader.is_active == True)
         .order_by(BomHeader.effective_date.desc())
     )
     return list(result.scalars().unique().all())
@@ -68,6 +72,51 @@ async def _load_budgets(db: AsyncSession, period_id, center_type: CostCenterType
     return result.scalar_one_or_none()
 
 
+def _topological_sort(dependencies: dict[str, set[str]]) -> list[str]:
+    """Topological sort of crude product IDs based on their dependencies.
+
+    Args:
+        dependencies: {cp_id: set of cp_ids it depends on}
+
+    Returns:
+        List of cp_ids in processing order (dependencies first).
+
+    Raises:
+        ValueError: If circular dependency detected.
+    """
+    # Kahn's algorithm
+    in_degree: dict[str, int] = defaultdict(int)
+    all_nodes: set[str] = set()
+    graph: dict[str, set[str]] = defaultdict(set)  # parent -> children
+
+    for node, deps in dependencies.items():
+        all_nodes.add(node)
+        for dep in deps:
+            all_nodes.add(dep)
+            graph[dep].add(node)
+            in_degree[node] += 1
+
+    # Nodes with no dependencies
+    queue = [n for n in all_nodes if in_degree[n] == 0]
+    queue.sort()  # Deterministic ordering
+
+    result = []
+    while queue:
+        node = queue.pop(0)
+        result.append(node)
+        for child in sorted(graph[node]):
+            in_degree[child] -= 1
+            if in_degree[child] == 0:
+                queue.append(child)
+
+    if len(result) != len(all_nodes):
+        processed = set(result)
+        cycle_nodes = all_nodes - processed
+        raise ValueError(f"原体BOMに循環依存があります: {cycle_nodes}")
+
+    return result
+
+
 async def calculate_standard_costs(
     db: AsyncSession,
     period_id,
@@ -77,7 +126,7 @@ async def calculate_standard_costs(
 ) -> dict:
     """Main entry point: calculate standard costs for a given period.
 
-    Returns dict with crude_product_costs and product_costs lists.
+    Stage 1 now supports multi-level crude product chains via topological sort.
     """
     overrides = overrides or {}
     material_price_overrides = overrides.get("material_prices", {})
@@ -96,15 +145,36 @@ async def calculate_standard_costs(
     prod_result = await db.execute(select(Product).where(Product.is_active == True))
     all_products = {str(p.id): p for p in prod_result.scalars().all()}
 
-    # ===== Stage 1: 原体原価計算 =====
-    stage1_boms = await _load_bom_headers(db, BomType.raw_material_process)
+    # ===== Stage 1: 原体原価計算（多段階対応） =====
+    # Load ALL crude product BOMs (both raw_material_process and crude_product_process)
+    stage1_boms = await _load_bom_headers(
+        db, [BomType.raw_material_process, BomType.crude_product_process]
+    )
 
-    # Group BOMs by crude_product_id (one BOM per crude product)
+    # Group BOMs by crude_product_id (one BOM per crude product, newest first)
     cp_bom_map: dict[str, BomHeader] = {}
     for bom in stage1_boms:
         cp_id = str(bom.crude_product_id) if bom.crude_product_id else None
         if cp_id and cp_id not in cp_bom_map:
             cp_bom_map[cp_id] = bom
+
+    # Build dependency graph for topological sort
+    dependencies: dict[str, set[str]] = {}
+    for cp_id, bom in cp_bom_map.items():
+        deps: set[str] = set()
+        for line in bom.lines:
+            if line.crude_product_id:
+                dep_id = str(line.crude_product_id)
+                # Only add as dependency if that crude product also has a BOM
+                # (otherwise it's a leaf/external input)
+                if dep_id in cp_bom_map:
+                    deps.add(dep_id)
+        dependencies[cp_id] = deps
+
+    # Topological sort: process dependencies first
+    sorted_cp_ids = _topological_sort(dependencies)
+    # Filter to only those with BOMs
+    sorted_cp_ids = [cid for cid in sorted_cp_ids if cid in cp_bom_map]
 
     # Load manufacturing budget
     mfg_budget = await _load_budgets(db, period_id, CostCenterType.manufacturing)
@@ -123,17 +193,21 @@ async def calculate_standard_costs(
             mfg_overhead = D(str(bc["overhead_budget"]))
 
     # Calculate standard quantities for each crude product (for budget allocation)
+    # Only count direct material inputs for allocation basis
     cp_std_quantities: dict[str, D] = {}
     cp_item_data: dict[str, dict] = {}
-    for cp_id, bom in cp_bom_map.items():
-        total_qty = ZERO
+    for cp_id in sorted_cp_ids:
+        bom = cp_bom_map[cp_id]
+        total_material_qty = ZERO
         for line in bom.lines:
             if line.material_id:
-                total_qty += line.quantity * (D("1") + line.loss_rate)
-        cp_std_quantities[cp_id] = total_qty
-        # production_hours: estimated from material processing (1h per 10kg of raw material)
-        est_hours = (total_qty / D("10")).quantize(FOUR, ROUND_HALF_UP) if total_qty > 0 else ZERO
-        cp_item_data[cp_id] = {"raw_material_quantity": total_qty, "production_hours": est_hours}
+                total_material_qty += line.quantity * (D("1") + line.loss_rate)
+        cp_std_quantities[cp_id] = total_material_qty if total_material_qty > 0 else D("1")
+        est_hours = (total_material_qty / D("10")).quantize(FOUR, ROUND_HALF_UP) if total_material_qty > 0 else ZERO
+        cp_item_data[cp_id] = {
+            "raw_material_quantity": total_material_qty,
+            "production_hours": est_hours,
+        }
 
     # Allocate labor and overhead budgets via rule-based allocation
     mfg_center_id = mfg_budget.cost_center_id if mfg_budget else None
@@ -153,15 +227,8 @@ async def calculate_standard_costs(
         labor_alloc = allocate_by_quantity(mfg_labor, cp_std_quantities)
         overhead_alloc = allocate_by_quantity(mfg_overhead, cp_std_quantities)
 
-    # Calculate material costs for each crude product
-    # Process non-blend first, then blend
+    # Calculate costs for each crude product in topological order
     crude_cost_results: dict[str, dict] = {}
-
-    # Sort: non-blend first
-    sorted_cp_ids = sorted(
-        cp_bom_map.keys(),
-        key=lambda cid: (1 if crude_products.get(cid) and crude_products[cid].is_blend else 0, cid)
-    )
 
     for cp_id in sorted_cp_ids:
         bom = cp_bom_map[cp_id]
@@ -181,7 +248,7 @@ async def calculate_standard_costs(
                     material_cost += (price * line.quantity * (D("1") + line.loss_rate)).quantize(FOUR, ROUND_HALF_UP)
 
             elif line.crude_product_id:
-                # Blend: use previously calculated crude product cost
+                # Multi-stage: use previously calculated crude product unit cost
                 src_cp_id = str(line.crude_product_id)
                 if src_cp_id in crude_cost_results:
                     src_unit_cost = crude_cost_results[src_cp_id]["unit_cost"]
@@ -206,7 +273,7 @@ async def calculate_standard_costs(
         }
 
     # ===== Stage 2: 製品原価計算 =====
-    stage2_boms = await _load_bom_headers(db, BomType.product_process)
+    stage2_boms = await _load_bom_headers(db, [BomType.product_process])
 
     # Group BOMs by product_id
     prod_bom_map: dict[str, BomHeader] = {}
@@ -247,7 +314,6 @@ async def calculate_standard_costs(
         if prod and prod.content_weight_g:
             weight = D(str(prod.content_weight_g))
         else:
-            # Fallback: sum of BOM line quantities
             total_qty = ZERO
             for line in bom.lines:
                 total_qty += line.quantity

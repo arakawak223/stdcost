@@ -115,14 +115,22 @@ export const productsApi = {
 };
 
 // Crude Products (原体/原液)
-export type CrudeProductType = "R" | "HI" | "G" | "SP" | "GN" | "other";
+export type CrudeProductType =
+  | "R1" | "R2" | "R3" | "R"
+  | "Rri" | "RB" | "Rma" | "Rshi" | "RG" | "RGI" | "FEB"
+  | "HI" | "HIA" | "HIB" | "HIR" | "HIBkai"
+  | "B" | "G" | "GA" | "GB" | "O" | "X" | "XC" | "BM" | "FB"
+  | "P" | "PX" | "PXA" | "MP" | "GP" | "LPA" | "PE" | "T" | "RX" | "plant"
+  | "other";
 
 export interface CrudeProduct {
   id: string;
   code: string;
   name: string;
-  vintage_year: number | null;
   crude_type: CrudeProductType;
+  process_stage: number | null;
+  parent_crude_product_id: string | null;
+  vintage_year: number | null;
   aging_years: number | null;
   is_blend: boolean;
   blend_source_ids: string | null;
@@ -136,8 +144,10 @@ export interface CrudeProduct {
 export interface CrudeProductCreate {
   code: string;
   name: string;
-  vintage_year?: number | null;
   crude_type: CrudeProductType;
+  process_stage?: number | null;
+  parent_crude_product_id?: string | null;
+  vintage_year?: number | null;
   aging_years?: number | null;
   is_blend?: boolean;
   unit?: string;
@@ -146,8 +156,10 @@ export interface CrudeProductCreate {
 
 export interface CrudeProductUpdate {
   name?: string;
-  vintage_year?: number | null;
   crude_type?: CrudeProductType;
+  process_stage?: number | null;
+  parent_crude_product_id?: string | null;
+  vintage_year?: number | null;
   aging_years?: number | null;
   is_blend?: boolean;
   unit?: string;
@@ -317,7 +329,7 @@ export const fiscalPeriodsApi = {
 };
 
 // BOM (Bill of Materials)
-export type BomType = "raw_material_process" | "product_process";
+export type BomType = "raw_material_process" | "crude_product_process" | "product_process";
 
 export interface BomLine {
   id: string;
