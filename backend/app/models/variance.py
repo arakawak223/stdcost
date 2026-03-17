@@ -37,7 +37,7 @@ class VarianceRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     standard_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     actual_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     variance_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
-    variance_percent: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False, default=0)
+    variance_percent: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
     is_favorable: Mapped[bool] = mapped_column(nullable=False)
     is_flagged: Mapped[bool] = mapped_column(default=False, nullable=False)
     flag_reason: Mapped[str | None] = mapped_column(Text)
