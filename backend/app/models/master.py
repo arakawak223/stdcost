@@ -95,6 +95,10 @@ class CrudeProductType(str, enum.Enum):
     T = "T"             # T（畜産用）
     RX = "RX"           # RX（植物用レギュラー）
     plant = "plant"     # 植物用ブレンド
+    # 決算用SC追加分（在庫評価用）
+    HIpa = "HIpa"       # HIパ（HIB後工程派生）
+    LP = "LP"           # LP（独立評価品目）
+    press = "press"     # 圧搾カス（圧搾残渣）
     # 汎用
     other = "other"
 
