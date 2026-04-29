@@ -65,6 +65,17 @@ class CostElement(str, enum.Enum):
     prior_process = "prior_process"  # 前工程費
 
 
+class InventoryCategory(str, enum.Enum):
+    """在庫区分（Excel「4.3期末全在庫」シートの「商品区分名」列）"""
+    product = "product"                # 製品（自社製造）
+    semi_finished = "semi_finished"    # 半製品
+    crude_product = "crude_product"    # 原体（原液）
+    raw_material = "raw_material"      # 原材料
+    sub_material = "sub_material"      # 副資材
+    merchandise = "merchandise"        # 商品（外注/仕入）
+    other = "other"                    # その他
+
+
 # --- 標準原価（中核モデル） ---
 
 class StandardCost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -223,6 +234,62 @@ class InventoryMovement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     material: Mapped["Material | None"] = relationship("Material", lazy="selectin")
     cost_center: Mapped[CostCenter] = relationship("CostCenter", lazy="selectin")
     period: Mapped[FiscalPeriod] = relationship("FiscalPeriod", lazy="selectin")
+
+
+# --- 在庫評価 ---
+
+class InventoryValuation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """期末在庫評価 - 標準単価×実際数量で在庫金額を算出
+
+    Excel「4.3期末全在庫」シートの 商品コード×倉庫名×期間 単位の在庫数量を保持し、
+    StandardCost / CrudeProductStandardCost / Material.standard_unit_price から
+    標準単価を引いて評価金額を算出する。
+    """
+    __tablename__ = "inventory_valuations"
+    __table_args__ = (
+        UniqueConstraint(
+            "item_code", "warehouse_name", "period_id",
+            name="uq_inv_val_code_wh_period"
+        ),
+    )
+
+    period_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("fiscal_periods.id"), nullable=False, index=True
+    )
+    item_code: Mapped[str] = mapped_column(
+        String(30), nullable=False, index=True,
+        comment="商品コード（マスタ未登録分: 例 (有償)20220500015 等にも対応）"
+    )
+    item_name: Mapped[str | None] = mapped_column(String(200), comment="商品名（参考情報）")
+    warehouse_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True, comment="倉庫名")
+    category: Mapped[InventoryCategory] = mapped_column(Enum(InventoryCategory), nullable=False, index=True)
+    # マスタ参照（item_code から解決して埋める。マスタ未登録の場合はNULL）
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("products.id"), index=True
+    )
+    crude_product_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("crude_products.id"), index=True
+    )
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("materials.id"), index=True
+    )
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0, comment="在庫数量")
+    unit: Mapped[str] = mapped_column(String(20), nullable=False, default="個")
+    standard_unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=0, comment="標準単価（StandardCost等から取得）"
+    )
+    valuation_amount: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=0, comment="評価金額 = quantity × standard_unit_price"
+    )
+    source_system: Mapped[SourceSystem] = mapped_column(
+        Enum(SourceSystem), nullable=False, default=SourceSystem.manual
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    period: Mapped[FiscalPeriod] = relationship("FiscalPeriod", lazy="selectin")
+    product: Mapped[Product | None] = relationship("Product", lazy="selectin")
+    crude_product: Mapped[CrudeProduct | None] = relationship("CrudeProduct", lazy="selectin")
+    material: Mapped["Material | None"] = relationship("Material", lazy="selectin")
 
 
 # --- 配賦 ---

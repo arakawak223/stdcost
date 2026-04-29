@@ -17,7 +17,9 @@ from app.models.cost import (
     CostAllocation,
     CrudeProductActualCost,
     CrudeProductStandardCost,
+    InventoryCategory,
     InventoryMovement,
+    InventoryValuation,
     StandardCost,
 )
 from app.models.variance import VarianceRecord
@@ -41,6 +43,8 @@ __all__ = [
     "ActualCost",
     "CrudeProductActualCost",
     "InventoryMovement",
+    "InventoryValuation",
+    "InventoryCategory",
     "CostAllocation",
     "VarianceRecord",
     "AuditLog",
