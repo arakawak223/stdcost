@@ -821,13 +821,13 @@ async def seed_fiscal_periods(db: AsyncSession) -> None:
         print("  会計期間: スキップ（既存データあり）")
         return
 
-    # 万田発酵: 第37期～第39期（決算月は9月 → 10月始まり）
+    # 万田発酵: 第37期～第39期（決算月は5月 → 6月始まり）
     periods = []
     for ki, base_year in [(37, 2023), (38, 2024), (39, 2025)]:
         for i in range(12):
-            # 10月始まりの会計年度
-            cal_year = base_year + (i + 10 - 1) // 12
-            cal_month = (i + 10 - 1) % 12 + 1
+            # 6月始まりの会計年度
+            cal_year = base_year + (i + 6 - 1) // 12
+            cal_month = (i + 6 - 1) % 12 + 1
             start = date(cal_year, cal_month, 1)
             last_day = calendar.monthrange(cal_year, cal_month)[1]
             end = date(cal_year, cal_month, last_day)
@@ -846,7 +846,7 @@ async def seed_fiscal_periods(db: AsyncSession) -> None:
 
             periods.append(FiscalPeriod(
                 year=ki, month=i + 1, start_date=start, end_date=end, status=status,
-                notes=f"第{ki}期 第{i+1}月（{cal_year}年{cal_month}月）",
+                notes=f"第{ki}期 第{i+1}月（{cal_year}年{cal_month}月）。6-5月決算。",
             ))
 
     db.add_all(periods)
