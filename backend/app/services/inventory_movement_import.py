@@ -1,18 +1,22 @@
 """Product inventory movement import service —
 Excel「製品増減内訳表」シートから製品の38期数量増減を InventoryMovement に取り込む。
 
-シート構造（製品増減内訳表）:
+シート構造（製品増減内訳表、ヘッダ Row3-5、データ Row6+）:
   A列: 区分(半/品/造/内/外内/外/他), C列: 商品コード, D列: 商品名
-  数量情報 (col 42-54):
+  数量情報 (1-indexed col 42-54):
     42: 期首(37期末), 43: 生産, 44: 販売, 45: 外注支給,
     46: 販促DM, 47: 販促, 48: 試験研究費, 49: 接待交際費,
     50: 寄付金, 51: 広告宣伝費, 52: 在庫調整, 53: 振替, 54: 期末
 
-MovementType マッピング(テスト用、既存値再利用):
-  生産           → finished_goods (受入)
-  販促DM/販促     → promotion (払出)
-  試験研究費      → research (払出)
-  その他出庫     → adjustment (販売/外注支給/接待/寄付/広告/在庫調整/振替)
+Excelの恒等式: 期首 + 生産 − 販売 − 外注支給 − 販促DM − ... − 振替 = 期末
+  → 生産以外は引き算項。負の値が入る列(振替など)は、引き算で実質「受入」になる。
+
+MovementType マッピング(既存enum再利用):
+  正の値の時:                    負の値の時(符号反転、絶対値で登録):
+    生産        → finished_goods    生産       → adjustment
+    販促DM/販促  → promotion          販促DM/販促 → finished_goods
+    試験研究費   → research            試験研究費  → finished_goods
+    その他      → adjustment          その他     → finished_goods
 """
 
 import io
@@ -35,19 +39,20 @@ from app.models.master import CostCenter, FiscalPeriod, Product
 
 PRODUCT_MOVEMENT_SHEET = "製品増減内訳表"
 
-# (Excel列番号, MovementType, ラベル) のリスト
-COLUMN_MOVEMENT_MAP: list[tuple[int, MovementType, str]] = [
-    (43, MovementType.finished_goods, "生産"),
-    (44, MovementType.adjustment, "販売"),
-    (45, MovementType.adjustment, "外注支給"),
-    (46, MovementType.promotion, "販促DM"),
-    (47, MovementType.promotion, "販促"),
-    (48, MovementType.research, "試験研究費"),
-    (49, MovementType.adjustment, "接待交際費"),
-    (50, MovementType.adjustment, "寄付金"),
-    (51, MovementType.adjustment, "広告宣伝費"),
-    (52, MovementType.adjustment, "在庫調整"),
-    (53, MovementType.adjustment, "振替"),
+# (Excel 1-indexed列番号, ラベル, 正値時のMovementType, 負値時のMovementType)
+# 負値時は符号反転して反対方向(受入↔払出)のtypeで登録する。
+COLUMN_MOVEMENT_MAP: list[tuple[int, str, MovementType, MovementType]] = [
+    (43, "生産",      MovementType.finished_goods, MovementType.adjustment),
+    (44, "販売",      MovementType.adjustment,     MovementType.finished_goods),
+    (45, "外注支給",   MovementType.adjustment,     MovementType.finished_goods),
+    (46, "販促DM",    MovementType.promotion,      MovementType.finished_goods),
+    (47, "販促",      MovementType.promotion,      MovementType.finished_goods),
+    (48, "試験研究費", MovementType.research,       MovementType.finished_goods),
+    (49, "接待交際費", MovementType.adjustment,     MovementType.finished_goods),
+    (50, "寄付金",    MovementType.adjustment,     MovementType.finished_goods),
+    (51, "広告宣伝費", MovementType.adjustment,     MovementType.finished_goods),
+    (52, "在庫調整",   MovementType.adjustment,     MovementType.finished_goods),
+    (53, "振替",      MovementType.adjustment,     MovementType.finished_goods),
 ]
 
 VALID_KIND_VALUES = {"半", "品", "造", "内", "外内", "外", "他"}
@@ -83,13 +88,19 @@ def _parse_movement_xlsx(content: bytes, sheet_name: str = PRODUCT_MOVEMENT_SHEE
 
         # col 42=期首, col 54=期末, col 43-53=movements (Pythonは0-indexed)
         movements = []
-        for col_num, mv_type, label in COLUMN_MOVEMENT_MAP:
+        for col_num, label, pos_type, neg_type in COLUMN_MOVEMENT_MAP:
             idx = col_num - 1
             v = row[idx] if len(row) > idx else None
             qty = _to_decimal(v)
             if qty is None:
                 continue
-            movements.append({"movement_type": mv_type, "label": label, "quantity": qty})
+            mv_type = pos_type if qty > 0 else neg_type
+            movements.append({
+                "movement_type": mv_type,
+                "label": label,
+                "quantity": abs(qty),
+                "reversed": qty < 0,
+            })
 
         if not movements:
             continue
@@ -223,10 +234,9 @@ async def process_product_movement_import(
             unit_cost = std_map.get(product_id, Decimal("0"))
 
             for mv in row["movements"]:
-                qty = mv["quantity"]
-                # 符号統一: 全て正の絶対値で登録（受入/払出はMovementTypeで判別）
-                qty_abs = abs(qty)
+                qty_abs = mv["quantity"]
                 total = qty_abs * unit_cost
+                marker = " (符号反転)" if mv["reversed"] else ""
                 db.add(InventoryMovement(
                     product_id=product_id,
                     cost_center_id=cc_id,
@@ -237,7 +247,7 @@ async def process_product_movement_import(
                     unit_cost=unit_cost,
                     total_cost=total,
                     source_system=src_enum,
-                    notes=f'{mv["label"]} (38期、製品増減内訳表)',
+                    notes=f'{mv["label"]}{marker} (38期、製品増減内訳表)',
                 ))
             success += 1
         except Exception as e:
