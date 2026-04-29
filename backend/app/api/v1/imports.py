@@ -11,6 +11,10 @@ from app.models.audit import ImportBatch
 from app.schemas.import_batch import ImportBatchRead, ImportErrorRead, ImportUploadResponse
 from app.services.data_import import SOURCE_MAPPINGS, process_import
 from app.services.inventory_import import INVENTORY_SHEET_NAME, process_inventory_import
+from app.services.inventory_movement_import import (
+    PRODUCT_MOVEMENT_SHEET,
+    process_product_movement_import,
+)
 
 router = APIRouter()
 
@@ -107,6 +111,55 @@ async def upload_inventory_file(
         message = f"インポート失敗: {batch.error_rows}件のエラー"
     else:
         message = f"{batch.success_rows}件の在庫評価データを正常にインポートしました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/product-movements", response_model=ImportUploadResponse)
+async def upload_product_movements_file(
+    file: UploadFile,
+    period_id: uuid.UUID = Form(...),
+    sheet_name: str = Form(PRODUCT_MOVEMENT_SHEET),
+    source_system: str = Form("manual"),
+    delete_existing: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """製品増減内訳表シートを取り込み、各列を MovementType にマップして InventoryMovement に登録する。
+
+    Excel構造: A=区分, C=商品コード, D=商品名, col 42-54=数量変動(期首/生産/販売/販促/.../期末)
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Excelファイル (.xlsx) をアップロードしてください")
+
+    content = await file.read()
+
+    batch = await process_product_movement_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        period_id=period_id,
+        sheet_name=sheet_name,
+        source_system=source_system,
+        delete_existing=delete_existing,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+    if batch.error_rows > 0 and batch.success_rows > 0:
+        message = f"{batch.success_rows}件成功、{batch.error_rows}件エラー"
+    elif batch.error_rows > 0:
+        message = f"インポート失敗: {batch.error_rows}件のエラー"
+    else:
+        message = f"{batch.success_rows}件の製品数量変動を正常にインポートしました"
 
     return ImportUploadResponse(
         batch_id=batch.id,
