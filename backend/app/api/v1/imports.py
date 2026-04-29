@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.audit import ImportBatch
 from app.schemas.import_batch import ImportBatchRead, ImportErrorRead, ImportUploadResponse
 from app.services.data_import import SOURCE_MAPPINGS, process_import
+from app.services.inventory_import import INVENTORY_SHEET_NAME, process_inventory_import
 
 router = APIRouter()
 
@@ -58,6 +59,54 @@ async def upload_import_file(
         message = f"インポート失敗: {batch.error_rows}件のエラー"
     else:
         message = f"{batch.success_rows}件のデータを正常にインポートしました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/inventory", response_model=ImportUploadResponse)
+async def upload_inventory_file(
+    file: UploadFile,
+    period_id: uuid.UUID = Form(...),
+    sheet_name: str = Form(INVENTORY_SHEET_NAME),
+    source_system: str = Form("manual"),
+    db: AsyncSession = Depends(get_db),
+):
+    """期末全在庫Excel(.xlsx)を取り込み、標準単価×数量で在庫評価金額を算出する。
+
+    Excel構造: A=商品コード, C=倉庫名, D=商品名, F=単位, G=当月在庫数, H=商品区分名, L=単価, M=金額
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Excelファイル (.xlsx) をアップロードしてください")
+
+    content = await file.read()
+
+    batch = await process_inventory_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        period_id=period_id,
+        sheet_name=sheet_name,
+        source_system=source_system,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+
+    if batch.error_rows > 0 and batch.success_rows > 0:
+        message = f"{batch.success_rows}件成功、{batch.error_rows}件エラー"
+    elif batch.error_rows > 0:
+        message = f"インポート失敗: {batch.error_rows}件のエラー"
+    else:
+        message = f"{batch.success_rows}件の在庫評価データを正常にインポートしました"
 
     return ImportUploadResponse(
         batch_id=batch.id,
