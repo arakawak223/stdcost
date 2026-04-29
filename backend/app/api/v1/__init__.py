@@ -13,6 +13,7 @@ from app.api.v1 import (
     fiscal_periods,
     imports,
     inventory,
+    inventory_valuations,
     materials,
     products,
     reconciliation,
@@ -34,6 +35,7 @@ router.include_router(costs.router, prefix="/costs/standard", tags=["標準原�
 router.include_router(actual_costs.router, prefix="/costs/actual", tags=["実際原価"])
 router.include_router(imports.router, prefix="/imports", tags=["データ取込"])
 router.include_router(inventory.router, prefix="/inventory", tags=["在庫移動"])
+router.include_router(inventory_valuations.router, prefix="/inventory-valuations", tags=["在庫評価"])
 router.include_router(variances.router, prefix="/costs/variance", tags=["差異分析"])
 router.include_router(ai.router, prefix="/ai", tags=["AIアシスタント"])
 router.include_router(reconciliation.router, prefix="/reconciliation", tags=["突合チェック"])
