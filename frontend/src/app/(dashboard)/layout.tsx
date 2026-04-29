@@ -19,6 +19,7 @@ import {
   DollarSign,
   Bot,
   Scale,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ const analysisNavigation = [
   { name: "差異分析", href: "/variance-analysis", icon: TrendingUp },
   { name: "データ取込", href: "/imports", icon: Upload },
   { name: "実際原価", href: "/actual-costs", icon: DollarSign },
+  { name: "在庫評価", href: "/inventory-valuations", icon: Boxes },
   { name: "AIアシスタント", href: "/ai-assistant", icon: Bot },
   { name: "突合チェック", href: "/reconciliation", icon: Scale },
 ];

@@ -187,3 +187,14 @@ export const reconciliationStatusLabels: Record<string, string> = {
   unmatched: "未照合",
   discrepancy: "不一致",
 };
+
+/** Inventory category labels */
+export const inventoryCategoryLabels: Record<string, string> = {
+  product: "製品",
+  semi_finished: "半製品",
+  crude_product: "原体",
+  raw_material: "原材料",
+  sub_material: "副資材",
+  merchandise: "商品",
+  other: "その他",
+};

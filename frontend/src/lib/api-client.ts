@@ -938,3 +938,118 @@ export const reconciliationApi = {
   summary: (period_id: string) =>
     fetchApi<ReconciliationSummary>(`/reconciliation/summary?period_id=${period_id}`),
 };
+
+// Inventory Valuations
+export type InventoryCategory =
+  | "product"
+  | "semi_finished"
+  | "crude_product"
+  | "raw_material"
+  | "sub_material"
+  | "merchandise"
+  | "other";
+
+export interface InventoryValuation {
+  id: string;
+  period_id: string;
+  item_code: string;
+  item_name: string | null;
+  warehouse_name: string;
+  category: InventoryCategory;
+  product_id: string | null;
+  crude_product_id: string | null;
+  material_id: string | null;
+  quantity: string;
+  unit: string;
+  standard_unit_price: string;
+  valuation_amount: string;
+  source_system: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CategorySummary {
+  category: InventoryCategory;
+  item_count: number;
+  total_quantity: string;
+  total_amount: string;
+}
+
+export interface WarehouseSummary {
+  warehouse_name: string;
+  item_count: number;
+  total_amount: string;
+}
+
+export interface ValuationSummary {
+  period_id: string;
+  total_items: number;
+  total_amount: string;
+  by_category: CategorySummary[];
+  by_warehouse: WarehouseSummary[];
+}
+
+export interface ProductInventoryFlow {
+  product_id: string;
+  product_code: string;
+  product_name: string;
+  standard_unit_price: string;
+  beginning_qty: string;
+  receipt_qty: string;
+  issue_qty: string;
+  ending_qty: string;
+  beginning_amount: string;
+  receipt_amount: string;
+  issue_amount: string;
+  ending_amount: string;
+}
+
+export const inventoryValuationsApi = {
+  list: (params?: {
+    period_id?: string;
+    category?: InventoryCategory;
+    warehouse_name?: string;
+    item_code?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.period_id) sp.set("period_id", params.period_id);
+    if (params?.category) sp.set("category", params.category);
+    if (params?.warehouse_name) sp.set("warehouse_name", params.warehouse_name);
+    if (params?.item_code) sp.set("item_code", params.item_code);
+    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
+    const qs = sp.toString();
+    return fetchApi<InventoryValuation[]>(`/inventory-valuations${qs ? `?${qs}` : ""}`);
+  },
+  summary: (period_id: string) =>
+    fetchApi<ValuationSummary>(`/inventory-valuations/summary?period_id=${period_id}`),
+  productFlow: (period_id: string, prior_period_id?: string) => {
+    const sp = new URLSearchParams({ period_id });
+    if (prior_period_id) sp.set("prior_period_id", prior_period_id);
+    return fetchApi<ProductInventoryFlow[]>(`/inventory-valuations/product-flow?${sp.toString()}`);
+  },
+  recalculate: (period_id: string) =>
+    fetchApi<{ updated: number; message: string }>(
+      `/inventory-valuations/recalculate?period_id=${period_id}`,
+      { method: "POST" }
+    ),
+  uploadInventory: (data: {
+    file: File;
+    period_id: string;
+    sheet_name?: string;
+    source_system?: string;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("period_id", data.period_id);
+    if (data.sheet_name) formData.append("sheet_name", data.sheet_name);
+    if (data.source_system) formData.append("source_system", data.source_system);
+    return fetchApiMultipart<ImportUploadResponse>("/imports/inventory", {
+      method: "POST",
+      body: formData,
+    });
+  },
+};
