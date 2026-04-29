@@ -491,6 +491,9 @@ async def seed_products(db: AsyncSession) -> None:
                 sc_code="20091200012", content_weight_g=D("75"), product_symbol="ZA", unit="個"),
         Product(code="20091200013", name="MANDA CARE PLUS 5g(ﾊﾟﾊﾟｲﾔ･ｺｺｱ)", product_type=PRD, product_group="ZA",
                 sc_code="20091200013", content_weight_g=D("5"), product_symbol="ZA", unit="個"),
+        # === 青汁 (1品) ===
+        Product(code="20191200088", name="おいしい青汁 3g×30本", product_type=PRD, product_group="青汁",
+                sc_code="20191200088", content_weight_g=D("90"), unit="個"),
         # === 半製品（11品）===
         Product(code="20110801158", name="PG 2.5g×2", product_type=ProductType.semi_finished, product_group="半製品",
                 sc_code="20110801158", content_weight_g=D("5"), product_symbol="PG", unit="個"),
@@ -681,6 +684,8 @@ async def seed_products(db: AsyncSession) -> None:
                 sc_code="20220200007", content_weight_g=D("5"), unit="個"),
         Product(code="20220500015", name="万田酵素ﾄﾞﾘﾝｸﾀｲﾌﾟ 50ml", product_type=ProductType.outsourced, product_group="外注",
                 sc_code="20220500015", content_weight_g=D("0"), unit="個"),
+        Product(code="(有償)20220500015", name="万田酵素ﾄﾞﾘﾝｸ 50ml(有償支給分)", product_type=ProductType.outsourced, product_group="外注",
+                sc_code="(有償)20220500015", content_weight_g=D("0"), unit="個"),
         Product(code="20220500001", name="お風呂の万田酵素 健酵入浴液300mL", product_type=ProductType.outsourced, product_group="外注",
                 sc_code="20220500001", content_weight_g=D("0"), unit="個"),
         Product(code="20220600065", name="お風呂の万田酵素 健酵入浴液 30mL", product_type=ProductType.outsourced, product_group="外注",
@@ -711,6 +716,8 @@ async def seed_products(db: AsyncSession) -> None:
                 sc_code="20230600096", content_weight_g=D("0"), unit="個"),
         Product(code="20240800028", name="万田酵素ﾄﾞﾘﾝｸ ﾌﾟﾗｽ 710ml", product_type=ProductType.outsourced, product_group="外注",
                 sc_code="20240800028", content_weight_g=D("0"), unit="個"),
+        Product(code="(有償)20240800028", name="万田酵素ﾄﾞﾘﾝｸ ﾌﾟﾗｽ 710ml(有償支給分)", product_type=ProductType.outsourced, product_group="外注",
+                sc_code="(有償)20240800028", content_weight_g=D("0"), unit="個"),
         Product(code="20240500048", name="Mforteﾓｲｽﾄｾﾗﾑﾏｽｸ27mL 10枚入り", product_type=ProductType.outsourced, product_group="外注",
                 sc_code="20240500048", content_weight_g=D("0"), unit="個"),
         Product(code="20241000051", name="愛犬おもいの 万田酵素 口腔ｹｱ 50g", product_type=ProductType.outsourced, product_group="外注",
@@ -758,6 +765,8 @@ async def seed_products(db: AsyncSession) -> None:
                 sc_code="20180200007", content_weight_g=D("0"), unit="個"),
         Product(code="20180200006", name="試供品 万田酵素 MULBERRY 粒", product_type=ProductType.special, product_group="その他",
                 sc_code="20180200006", content_weight_g=D("0"), unit="個"),
+        Product(code="20200300013", name="万田酵素STANDARD 粒 7粒×20包", product_type=ProductType.special, product_group="その他",
+                sc_code="20200300013", content_weight_g=D("0"), unit="個"),
         Product(code="20180300017", name="ｴﾑﾌｫﾙﾃ ﾓｲｽﾁｬｰﾛｰｼｮﾝ 120ml", product_type=ProductType.special, product_group="その他",
                 sc_code="20180300017", content_weight_g=D("0"), unit="個"),
         Product(code="20180300018", name="ｴﾑﾌｫﾙﾃ ｴｯｾﾝｽｴﾏﾙｼﾞｮﾝ 60ml", product_type=ProductType.special, product_group="その他",
@@ -1307,7 +1316,12 @@ async def seed_crude_product_standard_costs_39(db: AsyncSession) -> None:
 
 
 async def seed_standard_costs_39(db: AsyncSession) -> None:
-    """Excel「標準原価_製品_2603v5ー2.xlsx」製品標準原価シートの39期標準原価を全量投入。"""
+    """39期標準原価を全量投入。
+
+    出典: Excel「標準原価_製品・資材_2603v5ー3.xlsx」製品増減内訳表シートのAB列(決算用SC値)で
+    突合済み。値の異なる2件(20050300004, 20110800692)は v5-2 値を保持。
+    Excel新規4件(20191200088, 20200300013, (有償)20220500015, (有償)20240800028)を追加。
+    """
     existing = await db.execute(select(StandardCost).limit(1))
     if existing.scalar_one_or_none():
         print("  標準原価データ: スキップ（既存データあり）")
@@ -1439,6 +1453,7 @@ async def seed_standard_costs_39(db: AsyncSession) -> None:
         ("20241200064", 409, 239, 242, 111, 0, 1001),
         ("20250300087", 195, 108, 289, 64, 0, 656),
         ("20250400005", 15801, 1697, 4236, 4286, 0, 26020),
+        ("20191200088", 0, 0, 0, 0, 0, 784),  # 内訳不明（Excel空欄）、計のみ
         # === 半（半製品）11品 ===
         ("20110801158", 0, 0, 0, 0, 0, 66),
         ("20110801159", 0, 0, 0, 0, 0, 0),
@@ -1536,6 +1551,7 @@ async def seed_standard_costs_39(db: AsyncSession) -> None:
         ("20220200005", 0, 0, 0, 0, 17, 17),
         ("20220200007", 0, 0, 0, 0, 17, 17),
         ("20220500015", 0, 0, 0, 0, 51, 51),
+        ("(有償)20220500015", 0, 0, 0, 0, 73, 73),
         ("20220500001", 0, 0, 0, 0, 993, 993),
         ("20220600065", 0, 0, 0, 0, 106, 106),
         ("20231000064", 0, 0, 0, 0, 820, 820),
@@ -1551,6 +1567,7 @@ async def seed_standard_costs_39(db: AsyncSession) -> None:
         ("20250400009", 0, 0, 0, 0, 330, 330),
         ("20230600096", 0, 0, 0, 0, 185, 185),
         ("20240800028", 0, 0, 0, 0, 961, 961),
+        ("(有償)20240800028", 0, 0, 0, 0, 3068, 3068),
         ("20240500048", 0, 0, 0, 0, 3755, 3755),
         ("20241000051", 0, 0, 0, 0, 380, 380),
         ("20241000052", 0, 0, 0, 0, 380, 380),
@@ -1575,6 +1592,7 @@ async def seed_standard_costs_39(db: AsyncSession) -> None:
         ("20180100009", 0, 0, 0, 0, 0, 744),
         ("20180200007", 0, 0, 0, 0, 0, 14),
         ("20180200006", 0, 0, 0, 0, 0, 10),
+        ("20200300013", 0, 0, 0, 0, 0, 463),
         ("20180300017", 0, 0, 0, 0, 0, 607),
         ("20180300018", 0, 0, 0, 0, 0, 622),
         ("20180300019", 0, 0, 0, 0, 0, 749),
@@ -1609,7 +1627,7 @@ async def seed_standard_costs_39(db: AsyncSession) -> None:
             total_cost=D(str(total)),
             unit_cost=D(str(total)),
             lot_size=D("1"),
-            notes="Excel「標準原価_製品_2603v5ー2.xlsx」39期標準原価",
+            notes="Excel「標準原価_製品・資材_2603v5ー3.xlsx」製品増減内訳表 39期標準原価(決算用SC突合済)",
         ))
         count += 1
 
