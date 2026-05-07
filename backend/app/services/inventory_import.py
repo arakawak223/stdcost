@@ -2,8 +2,11 @@
 標準単価×数量で在庫評価金額を算出する。
 
 Excelシート構造:
-  A列: 商品コード, C列: 倉庫名, D列: 商品名, F列: 単位名, G列: 当月在庫数,
+  A列: 商品コード, B列: CD統合, C列: 倉庫名, D列: 商品名, F列: 単位名, G列: 当月在庫数,
   H列: 商品区分名, L列: 単価, M列: 金額, O列: 在庫計上
+
+  ※ B列「CD統合」は AB品（同一製品の別ロット/別表示コード）を親製品コードに集約
+     するためのキー。マスタ照合は「CD統合 → A列商品コード」の順で試行する。
 
 標準単価の取得:
   - 製品/半製品/商品 → StandardCost.unit_cost (39期1月)
@@ -59,15 +62,21 @@ def _parse_inventory_xlsx(content: bytes, sheet_name: str = INVENTORY_SHEET_NAME
     for r_idx, row_values in enumerate(ws.iter_rows(values_only=True), start=1):
         if r_idx == 1:
             continue  # header
-        # A=0, C=2, D=3, F=5, G=6, H=7, L=11, M=12, O=14
+        # A=0, B=1, C=2, D=3, F=5, G=6, H=7, L=11, M=12, O=14
         if not row_values or row_values[0] is None:
             continue
         item_code = str(row_values[0]).strip() if row_values[0] is not None else ""
         if not item_code:
             continue
+        # B列「CD統合」: AB品の親コード。空またはA列と同じならNone扱い。
+        consolidated_raw = (
+            str(row_values[1]).strip() if len(row_values) > 1 and row_values[1] is not None else ""
+        )
+        consolidated_code = consolidated_raw if consolidated_raw and consolidated_raw != item_code else None
         rows.append({
             "row_number": r_idx,
             "item_code": item_code,
+            "consolidated_code": consolidated_code,
             "warehouse_name": (str(row_values[2]).strip() if len(row_values) > 2 and row_values[2] is not None else ""),
             "item_name": (str(row_values[3]).strip() if len(row_values) > 3 and row_values[3] is not None else None),
             "unit": (str(row_values[5]).strip() if len(row_values) > 5 and row_values[5] is not None else "個"),
@@ -139,12 +148,18 @@ def _resolve_category(category_raw: str) -> InventoryCategory:
 
 def _resolve_master_and_unit_price(
     item_code: str,
+    consolidated_code: str | None,
     category: InventoryCategory,
     excel_unit_price: Decimal | None,
     lookups: dict,
 ) -> tuple[uuid.UUID | None, uuid.UUID | None, uuid.UUID | None, Decimal]:
     """
     item_code・区分から (product_id, crude_product_id, material_id, standard_unit_price) を解決する。
+
+    マスタ照合のキー優先順序:
+      1. consolidated_code (B列「CD統合」) — AB品を親製品コードに集約するため
+      2. item_code (A列「商品コード」) — 集約対象外の通常品
+
     Excelに単価が直接記載されていれば優先採用、なければマスタから引く。
     マスタ未登録時は (None, None, None, excel単価 or 0) を返す。
     """
@@ -153,29 +168,42 @@ def _resolve_master_and_unit_price(
     material_id: uuid.UUID | None = None
     unit_price: Decimal = Decimal("0")
 
+    # 照合候補: CD統合があれば最優先、次にA列商品コード
+    candidate_codes: list[str] = []
+    if consolidated_code:
+        candidate_codes.append(consolidated_code)
+    if item_code and item_code not in candidate_codes:
+        candidate_codes.append(item_code)
+
     if category in (
         InventoryCategory.product,
         InventoryCategory.semi_finished,
         InventoryCategory.merchandise,
     ):
-        pid = lookups["product"].get(item_code)
-        if pid:
-            product_id = pid
-            std = lookups["std_cost"].get(pid)
-            if std is not None:
-                unit_price = Decimal(str(std))
+        for code in candidate_codes:
+            pid = lookups["product"].get(code)
+            if pid:
+                product_id = pid
+                std = lookups["std_cost"].get(pid)
+                if std is not None:
+                    unit_price = Decimal(str(std))
+                break
     elif category == InventoryCategory.crude_product:
-        cid = lookups["crude"].get(item_code)
-        if cid:
-            crude_id = cid
-            std = lookups["crude_std"].get(cid)
-            if std is not None:
-                unit_price = Decimal(str(std))
+        for code in candidate_codes:
+            cid = lookups["crude"].get(code)
+            if cid:
+                crude_id = cid
+                std = lookups["crude_std"].get(cid)
+                if std is not None:
+                    unit_price = Decimal(str(std))
+                break
     elif category in (InventoryCategory.raw_material, InventoryCategory.sub_material):
-        mat = lookups["material"].get(item_code)
-        if mat:
-            material_id, mat_price = mat
-            unit_price = Decimal(str(mat_price)) if mat_price is not None else Decimal("0")
+        for code in candidate_codes:
+            mat = lookups["material"].get(code)
+            if mat:
+                material_id, mat_price = mat
+                unit_price = Decimal(str(mat_price)) if mat_price is not None else Decimal("0")
+                break
 
     # Excel に単価が直接設定されていればそちらを優先（資材在庫の単価設定済みケース）
     if excel_unit_price is not None and excel_unit_price > 0:
@@ -252,7 +280,7 @@ async def process_inventory_import(
             category = _resolve_category(row["category_raw"])
 
             product_id, crude_id, material_id, unit_price = _resolve_master_and_unit_price(
-                row["item_code"], category, excel_price, lookups
+                row["item_code"], row.get("consolidated_code"), category, excel_price, lookups
             )
             valuation = quantity * unit_price
 
