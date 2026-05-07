@@ -20,6 +20,12 @@ from app.services.crude_inventory_import import (
     DEFAULT_WAREHOUSE as CRUDE_DEFAULT_WAREHOUSE,
     process_crude_inventory_import,
 )
+from app.services.raw_material_inventory_import import (
+    RAW_INVENTORY_SHEET,
+    RAW_SC_SHEET,
+    DEFAULT_WAREHOUSE as RAW_DEFAULT_WAREHOUSE,
+    process_raw_material_inventory_import,
+)
 
 router = APIRouter()
 
@@ -222,6 +228,67 @@ async def upload_crude_inventory_file(
         message = f"インポート失敗: {batch.error_rows}件のエラー"
     else:
         message = f"{batch.success_rows}件の原液在庫を正常にインポートしました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/raw-material-inventory", response_model=ImportUploadResponse)
+async def upload_raw_material_inventory_file(
+    file: UploadFile,
+    period_id: uuid.UUID = Form(...),
+    inventory_sheet: str = Form(RAW_INVENTORY_SHEET),
+    sc_sheet: str = Form(RAW_SC_SHEET),
+    source_system: str = Form("manual"),
+    warehouse_name: str = Form(RAW_DEFAULT_WAREHOUSE),
+    delete_existing: bool = Form(True),
+    skip_zero_stock: bool = Form(False),
+    update_master_price: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """決算用SC原材料.xlsx (1.5原材料在庫 + 原材料SC明細) を取り込み、
+    原材料在庫を inventory_valuations に category=raw_material として登録する。
+
+    1.5シートのロット別在庫はコード単位で集約。
+    SC明細(BC列)から SC単価を取得して standard_unit_price に設定。
+    materials マスタにない原料コードは自動INSERT (raw type)。
+    update_master_price=True で SC単価を materials.standard_unit_price にも反映。
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Excelファイル (.xlsx) をアップロードしてください")
+
+    content = await file.read()
+
+    batch = await process_raw_material_inventory_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        period_id=period_id,
+        inventory_sheet=inventory_sheet,
+        sc_sheet=sc_sheet,
+        source_system=source_system,
+        warehouse_name=warehouse_name,
+        delete_existing=delete_existing,
+        skip_zero_stock=skip_zero_stock,
+        update_master_price=update_master_price,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+    if batch.error_rows > 0 and batch.success_rows > 0:
+        message = f"{batch.success_rows}件成功、{batch.error_rows}件エラー"
+    elif batch.error_rows > 0:
+        message = f"インポート失敗: {batch.error_rows}件のエラー"
+    else:
+        message = f"{batch.success_rows}件の原材料在庫を正常にインポートしました"
 
     return ImportUploadResponse(
         batch_id=batch.id,
