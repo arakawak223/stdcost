@@ -15,6 +15,11 @@ from app.services.inventory_movement_import import (
     PRODUCT_MOVEMENT_SHEET,
     process_product_movement_import,
 )
+from app.services.crude_inventory_import import (
+    CRUDE_INVENTORY_SHEET,
+    DEFAULT_WAREHOUSE as CRUDE_DEFAULT_WAREHOUSE,
+    process_crude_inventory_import,
+)
 
 router = APIRouter()
 
@@ -160,6 +165,63 @@ async def upload_product_movements_file(
         message = f"インポート失敗: {batch.error_rows}件のエラー"
     else:
         message = f"{batch.success_rows}件の製品数量変動を正常にインポートしました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/crude-inventory", response_model=ImportUploadResponse)
+async def upload_crude_inventory_file(
+    file: UploadFile,
+    period_id: uuid.UUID = Form(...),
+    sheet_name: str = Form(CRUDE_INVENTORY_SHEET),
+    source_system: str = Form("manual"),
+    warehouse_name: str = Form(CRUDE_DEFAULT_WAREHOUSE),
+    delete_existing: bool = Form(True),
+    skip_zero_stock: bool = Form(False),
+    db: AsyncSession = Depends(get_db),
+):
+    """2.9原液在庫シート (xlsx変換後) を取り込み、原液タンク在庫を
+    inventory_valuations に category=crude_product として登録する。
+
+    Section 1 (1-XX-Y 等のコード形式) のみ取込。Section 2 の「製造倉庫」
+    行は 4.3期末全在庫 と数量重複するためスキップ。
+    crude_products に未登録のコードは vintage_year/crude_type を推定して
+    自動INSERT (notes='2.9原液在庫 取込時に補完')。
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Excelファイル (.xlsx) をアップロードしてください (xlsbはxlsx変換が必要)")
+
+    content = await file.read()
+
+    batch = await process_crude_inventory_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        period_id=period_id,
+        sheet_name=sheet_name,
+        source_system=source_system,
+        warehouse_name=warehouse_name,
+        delete_existing=delete_existing,
+        skip_zero_stock=skip_zero_stock,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+    if batch.error_rows > 0 and batch.success_rows > 0:
+        message = f"{batch.success_rows}件成功、{batch.error_rows}件エラー"
+    elif batch.error_rows > 0:
+        message = f"インポート失敗: {batch.error_rows}件のエラー"
+    else:
+        message = f"{batch.success_rows}件の原液在庫を正常にインポートしました"
 
     return ImportUploadResponse(
         batch_id=batch.id,
