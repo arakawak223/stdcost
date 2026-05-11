@@ -199,6 +199,10 @@ class CrudeProduct(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     unit: Mapped[str] = mapped_column(String(10), nullable=False, default="kg")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+    sc_consolidation_key: Mapped[str | None] = mapped_column(
+        String(20), index=True,
+        comment="SC計算上の名寄せキー(R/HI/Rri/plant等)。crude_typeと独立。"
+    )
 
     parent_crude_product: Mapped["CrudeProduct | None"] = relationship(
         "CrudeProduct", remote_side="CrudeProduct.id", lazy="selectin"

@@ -99,6 +99,7 @@ class CrudeProductBase(BaseModel):
     unit: str = Field(default="kg", max_length=10)
     is_active: bool = True
     notes: str | None = None
+    sc_consolidation_key: str | None = Field(default=None, max_length=20)
 
 
 class CrudeProductCreate(CrudeProductBase):
@@ -117,6 +118,7 @@ class CrudeProductUpdate(BaseModel):
     unit: str | None = Field(default=None, max_length=10)
     is_active: bool | None = None
     notes: str | None = None
+    sc_consolidation_key: str | None = Field(default=None, max_length=20)
 
 
 class CrudeProductRead(CrudeProductBase):

@@ -20,6 +20,7 @@ from app.models.cost import (
     InventoryCategory,
     InventoryMovement,
     InventoryValuation,
+    MaterialStandardCost,
     StandardCost,
 )
 from app.models.variance import VarianceRecord
@@ -40,6 +41,7 @@ __all__ = [
     "CostBudget",
     "StandardCost",
     "CrudeProductStandardCost",
+    "MaterialStandardCost",
     "ActualCost",
     "CrudeProductActualCost",
     "InventoryMovement",

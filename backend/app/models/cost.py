@@ -27,7 +27,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from app.models.master import CostCenter, FiscalPeriod, Product, CrudeProduct
+from app.models.master import CostCenter, FiscalPeriod, Product, CrudeProduct, Material
 
 
 class SourceSystem(str, enum.Enum):
@@ -129,6 +129,33 @@ class CrudeProductStandardCost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     crude_product: Mapped[CrudeProduct] = relationship("CrudeProduct", lazy="selectin")
+    period: Mapped[FiscalPeriod] = relationship("FiscalPeriod", lazy="selectin")
+
+
+class MaterialStandardCost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """原材料標準単価(期別) - 原材料の標準単価を期ごとに管理。
+
+    旧 Material.standard_unit_price (単一値) を発展させ、期別履歴・
+    SC決算用の単価変更を扱えるようにしたもの。読出し時は当該期間の
+    値を優先し、未設定なら Material.standard_unit_price (キャッシュ)
+    にフォールバックする。
+    """
+    __tablename__ = "material_standard_costs"
+    __table_args__ = (
+        UniqueConstraint("material_id", "period_id", name="uq_material_std_cost_material_period"),
+    )
+
+    material_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("materials.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    period_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("fiscal_periods.id"), nullable=False, index=True
+    )
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, comment="円/単位")
+    effective_date: Mapped[date | None] = mapped_column(Date, comment="適用開始日(参考)")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    material: Mapped[Material] = relationship("Material", lazy="selectin")
     period: Mapped[FiscalPeriod] = relationship("FiscalPeriod", lazy="selectin")
 
 
