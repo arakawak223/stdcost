@@ -137,8 +137,18 @@ export interface CrudeProduct {
   unit: string;
   is_active: boolean;
   notes: string | null;
+  sc_consolidation_key: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CrudeProductConsolidationGroup {
+  sc_consolidation_key: string | null;
+  item_count: number;
+  unit_cost_min: string | null;
+  unit_cost_max: string | null;
+  unit_cost_avg: string | null;
+  sample_codes: string[];
 }
 
 export interface CrudeProductCreate {
@@ -173,6 +183,7 @@ export const crudeProductsApi = {
     per_page?: number;
     search?: string;
     crude_type?: string;
+    sc_consolidation_key?: string;
     vintage_year?: number;
     is_active?: boolean;
   }) => {
@@ -181,10 +192,15 @@ export const crudeProductsApi = {
     if (params?.per_page) searchParams.set("per_page", String(params.per_page));
     if (params?.search) searchParams.set("search", params.search);
     if (params?.crude_type) searchParams.set("crude_type", params.crude_type);
+    if (params?.sc_consolidation_key) searchParams.set("sc_consolidation_key", params.sc_consolidation_key);
     if (params?.vintage_year) searchParams.set("vintage_year", String(params.vintage_year));
     if (params?.is_active !== undefined) searchParams.set("is_active", String(params.is_active));
     const qs = searchParams.toString();
     return fetchApi<CrudeProduct[]>(`/masters/crude-products${qs ? `?${qs}` : ""}`);
+  },
+  consolidationSummary: (periodId?: string) => {
+    const qs = periodId ? `?period_id=${encodeURIComponent(periodId)}` : "";
+    return fetchApi<CrudeProductConsolidationGroup[]>(`/masters/crude-products/consolidation/summary${qs}`);
   },
   get: (id: string) => fetchApi<CrudeProduct>(`/masters/crude-products/${id}`),
   create: (data: CrudeProductCreate) =>
@@ -366,7 +382,7 @@ export interface BomHeader {
   notes: string | null;
   lines: BomLine[];
   product: Product | null;
-  crude_product_detail: CrudeProduct | null;
+  crude_product: CrudeProduct | null;
   created_at: string;
   updated_at: string;
 }

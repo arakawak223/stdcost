@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("", response_model=list[MaterialRead])
 async def list_materials(
     page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=200),
+    per_page: int = Query(50, ge=1, le=2000),
     search: str | None = None,
     material_type: MaterialType | None = None,
     category: MaterialCategory | None = None,

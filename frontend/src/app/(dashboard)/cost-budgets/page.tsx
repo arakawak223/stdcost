@@ -121,7 +121,7 @@ export default function CostBudgetsPage() {
                       <TableCell>{cc?.name || "-"}</TableCell>
                       <TableCell>
                         {period
-                          ? formatFiscalPeriod(period.year, period.month)
+                          ? formatFiscalPeriod(period.year, period.month, period.start_date)
                           : "-"}
                       </TableCell>
                       <TableCell className="text-right">
@@ -187,7 +187,7 @@ export default function CostBudgetsPage() {
                 <option value="">選択してください</option>
                 {periods?.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {formatFiscalPeriod(p.year, p.month)}
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
                   </option>
                 ))}
               </select>

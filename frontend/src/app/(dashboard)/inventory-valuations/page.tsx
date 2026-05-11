@@ -100,7 +100,7 @@ export default function InventoryValuationsPage() {
                 <option value="">選択...</option>
                 {periods?.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {formatFiscalPeriod(p.year, p.month)}
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
                   </option>
                 ))}
               </select>
@@ -115,7 +115,7 @@ export default function InventoryValuationsPage() {
                 <option value="">なし</option>
                 {periods?.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {formatFiscalPeriod(p.year, p.month)}
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
                   </option>
                 ))}
               </select>

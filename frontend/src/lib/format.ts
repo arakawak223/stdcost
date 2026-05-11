@@ -26,9 +26,21 @@ export function formatJpDate(dateStr: string): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-/** Format fiscal period (e.g., 第38期 第5月) */
-export function formatFiscalPeriod(year: number, month: number): string {
-  return `第${year}期 第${month}月`;
+/** Format fiscal period
+ *  month は「期初(6月)から数えてN番目の月」(1..12)。暦の月名ではない。
+ *  startDate を渡すと暦の年月を主表記とし、会計期表記を括弧内に併記する。
+ *  例: formatFiscalPeriod(39, 8, "2026-01-01") → "2026年1月 (第39期 8か月目)"
+ */
+export function formatFiscalPeriod(
+  year: number,
+  month: number,
+  startDate?: string
+): string {
+  const fiscal = `第${year}期 ${month}か月目`;
+  if (!startDate) return fiscal;
+  const d = new Date(startDate);
+  if (Number.isNaN(d.getTime())) return fiscal;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月 (${fiscal})`;
 }
 
 /** Format percentage (e.g., 12.3%) */

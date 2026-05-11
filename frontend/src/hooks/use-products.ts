@@ -8,6 +8,11 @@ import {
   type ProductUpdate,
 } from "@/lib/api-client";
 
+/** マスタ系一覧のデフォルト件数。
+ *  現在の products テーブルは711件あるため、全件取得できるよう per_page を大きめに設定。
+ */
+const DEFAULT_PRODUCTS_PER_PAGE = 2000;
+
 export function useProducts(params?: {
   page?: number;
   per_page?: number;
@@ -15,9 +20,10 @@ export function useProducts(params?: {
   product_group?: string;
   is_active?: boolean;
 }) {
+  const merged = { per_page: DEFAULT_PRODUCTS_PER_PAGE, ...params };
   return useQuery({
-    queryKey: ["products", params],
-    queryFn: () => productsApi.list(params),
+    queryKey: ["products", merged],
+    queryFn: () => productsApi.list(merged),
   });
 }
 

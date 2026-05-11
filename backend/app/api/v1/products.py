@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("", response_model=list[ProductRead])
 async def list_products(
     page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=200),
+    per_page: int = Query(50, ge=1, le=2000),
     search: str | None = None,
     product_group: str | None = None,
     product_type: ProductType | None = None,

@@ -114,8 +114,8 @@ export default function BomListPage() {
                       >
                         {bom.product
                           ? `${bom.product.code} - ${bom.product.name}`
-                          : bom.crude_product_detail
-                            ? `${bom.crude_product_detail.code} - ${bom.crude_product_detail.name}`
+                          : bom.crude_product
+                            ? `${bom.crude_product.code} - ${bom.crude_product.name}`
                             : "-"}
                       </Link>
                     </TableCell>

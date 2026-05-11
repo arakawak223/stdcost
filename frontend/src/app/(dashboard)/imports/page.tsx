@@ -93,7 +93,7 @@ export default function ImportsPage() {
                 <option value="">選択...</option>
                 {periods?.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {formatFiscalPeriod(p.year, p.month)}
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
                   </option>
                 ))}
               </select>
