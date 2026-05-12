@@ -287,6 +287,55 @@ export const materialsApi = {
     fetchApi<{ message: string }>(`/masters/materials/${id}`, { method: "DELETE" }),
 };
 
+// MaterialStandardCost (原材料標準単価・期別)
+export interface MaterialStandardCost {
+  id: string;
+  material_id: string;
+  period_id: string;
+  unit_cost: string;
+  effective_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialStandardCostCreate {
+  material_id: string;
+  period_id: string;
+  unit_cost: string;
+  effective_date?: string | null;
+  notes?: string | null;
+}
+
+export interface MaterialStandardCostUpdate {
+  unit_cost?: string;
+  effective_date?: string | null;
+  notes?: string | null;
+}
+
+export const materialStandardCostsApi = {
+  list: (params?: { material_id?: string; period_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.material_id) sp.set("material_id", params.material_id);
+    if (params?.period_id) sp.set("period_id", params.period_id);
+    const qs = sp.toString();
+    return fetchApi<MaterialStandardCost[]>(`/costs/material-standard${qs ? `?${qs}` : ""}`);
+  },
+  get: (id: string) => fetchApi<MaterialStandardCost>(`/costs/material-standard/${id}`),
+  create: (data: MaterialStandardCostCreate) =>
+    fetchApi<MaterialStandardCost>("/costs/material-standard", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: MaterialStandardCostUpdate) =>
+    fetchApi<MaterialStandardCost>(`/costs/material-standard/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi<{ message: string }>(`/costs/material-standard/${id}`, { method: "DELETE" }),
+};
+
 // Contractors (外注先)
 export interface Contractor {
   id: string;

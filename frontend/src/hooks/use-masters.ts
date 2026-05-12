@@ -1,12 +1,15 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   costCentersApi,
   materialsApi,
+  materialStandardCostsApi,
   crudeProductsApi,
   contractorsApi,
   fiscalPeriodsApi,
+  type MaterialStandardCostCreate,
+  type MaterialStandardCostUpdate,
 } from "@/lib/api-client";
 
 export function useCostCenters(params?: { center_type?: string; is_active?: boolean }) {
@@ -78,4 +81,43 @@ export function useFiscalPeriods(params?: { year?: number; status?: string }) {
     queryKey: ["fiscal-periods", params],
     queryFn: () => fiscalPeriodsApi.list(params),
   });
+}
+
+/** 期別の原材料標準単価。period_id 指定で全 material の単価一覧を取得する。 */
+export function useMaterialStandardCosts(params?: {
+  material_id?: string;
+  period_id?: string;
+}) {
+  const enabled = Boolean(params?.material_id || params?.period_id);
+  return useQuery({
+    queryKey: ["material-standard-costs", params],
+    queryFn: () => materialStandardCostsApi.list(params),
+    enabled,
+  });
+}
+
+/** 期別単価の作成/更新/削除をまとめて扱う mutation 群。
+ *  保存後は material-standard-costs キャッシュを invalidate する。
+ */
+export function useMaterialStandardCostMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["material-standard-costs"] });
+    qc.invalidateQueries({ queryKey: ["crude-products-consolidation"] });
+  };
+  const create = useMutation({
+    mutationFn: (data: MaterialStandardCostCreate) =>
+      materialStandardCostsApi.create(data),
+    onSuccess: invalidate,
+  });
+  const update = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: MaterialStandardCostUpdate }) =>
+      materialStandardCostsApi.update(id, data),
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => materialStandardCostsApi.delete(id),
+    onSuccess: invalidate,
+  });
+  return { create, update, remove };
 }
