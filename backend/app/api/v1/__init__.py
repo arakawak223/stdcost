@@ -14,6 +14,7 @@ from app.api.v1 import (
     imports,
     inventory,
     inventory_valuations,
+    material_standard_costs,
     materials,
     products,
     reconciliation,
@@ -32,6 +33,7 @@ router.include_router(bom.router, prefix="/masters/bom", tags=["BOM管理"])
 router.include_router(allocation_rules.router, prefix="/masters/allocation-rules", tags=["配賦ルール"])
 router.include_router(cost_budgets.router, prefix="/masters/cost-budgets", tags=["予算管理"])
 router.include_router(costs.router, prefix="/costs/standard", tags=["標準原価計算"])
+router.include_router(material_standard_costs.router, prefix="/costs/material-standard", tags=["原材料標準単価"])
 router.include_router(actual_costs.router, prefix="/costs/actual", tags=["実際原価"])
 router.include_router(imports.router, prefix="/imports", tags=["データ取込"])
 router.include_router(inventory.router, prefix="/inventory", tags=["在庫移動"])

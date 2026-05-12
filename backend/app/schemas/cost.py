@@ -1,7 +1,7 @@
 """Pydantic v2 schemas for cost data: budgets, standard costs, calculation requests."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -73,6 +73,52 @@ class StandardCostRead(BaseModel):
     notes: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+# --- MaterialStandardCost (原材料標準単価 / 期別) ---
+
+class MaterialStandardCostBase(BaseModel):
+    material_id: uuid.UUID
+    period_id: uuid.UUID
+    unit_cost: Decimal = Field(decimal_places=4)
+    effective_date: date | None = None
+    notes: str | None = None
+
+
+class MaterialStandardCostCreate(MaterialStandardCostBase):
+    pass
+
+
+class MaterialStandardCostUpdate(BaseModel):
+    unit_cost: Decimal | None = None
+    effective_date: date | None = None
+    notes: str | None = None
+
+
+class MaterialStandardCostRead(MaterialStandardCostBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class MaterialStandardCostBulkUpsertItem(BaseModel):
+    material_id: uuid.UUID
+    unit_cost: Decimal = Field(decimal_places=4)
+    effective_date: date | None = None
+    notes: str | None = None
+
+
+class MaterialStandardCostBulkUpsertRequest(BaseModel):
+    period_id: uuid.UUID
+    items: list[MaterialStandardCostBulkUpsertItem]
+
+
+class MaterialStandardCostBulkUpsertResponse(BaseModel):
+    period_id: uuid.UUID
+    inserted: int
+    updated: int
+    unchanged: int
 
 
 # --- Calculation Request/Response ---

@@ -18,6 +18,7 @@ from app.models.cost import (
     InventoryCategory,
     InventoryMovement,
     InventoryValuation,
+    MaterialStandardCost,
     MovementType,
     StandardCost,
 )
@@ -252,10 +253,20 @@ async def recalculate_valuation_amounts(
     )
     crude_map = {row[0]: Decimal(str(row[1])) for row in crude_result.all()}
 
+    # 原材料単価: 期別 material_standard_costs を優先し、なければ
+    # Material.standard_unit_price (キャッシュ) にフォールバック
+    msc_result = await db.execute(
+        select(
+            MaterialStandardCost.material_id, MaterialStandardCost.unit_cost
+        ).where(MaterialStandardCost.period_id == period_id)
+    )
+    msc_map = {row[0]: Decimal(str(row[1])) for row in msc_result.all()}
+
     mat_result = await db.execute(
         select(Material.id, Material.standard_unit_price)
     )
-    mat_map = {row[0]: Decimal(str(row[1])) for row in mat_result.all()}
+    mat_fallback = {row[0]: Decimal(str(row[1])) for row in mat_result.all()}
+    mat_map = {**mat_fallback, **msc_map}
 
     # 全件取得して再計算
     inv_result = await db.execute(

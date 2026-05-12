@@ -38,7 +38,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import ImportBatch, ImportError as ImportErrorModel, ImportStatus
-from app.models.cost import InventoryCategory, InventoryValuation, SourceSystem
+from app.models.cost import (
+    InventoryCategory,
+    InventoryValuation,
+    MaterialStandardCost,
+    SourceSystem,
+)
 from app.models.master import FiscalPeriod, Material, MaterialType
 
 
@@ -333,14 +338,39 @@ async def process_raw_material_inventory_import(
             ))
             errors += 1
 
-    # マスタ単価バッチ更新
+    # マスタ単価バッチ更新 + 期別単価 (material_standard_costs) も同期
+    msc_inserted = 0
+    msc_updated = 0
     if pending_master_updates:
+        # 当期の既存 MaterialStandardCost を map 化
+        msc_res = await db.execute(
+            select(MaterialStandardCost).where(
+                MaterialStandardCost.period_id == period_id,
+                MaterialStandardCost.material_id.in_(list(pending_master_updates.keys())),
+            )
+        )
+        msc_existing: dict[uuid.UUID, MaterialStandardCost] = {
+            r.material_id: r for r in msc_res.scalars().all()
+        }
         for mat_id, new_price in pending_master_updates.items():
             res = await db.execute(select(Material).where(Material.id == mat_id))
             m = res.scalar_one_or_none()
             if m:
                 m.standard_unit_price = new_price
                 master_updated += 1
+            # MaterialStandardCost も同期 (period_id 別の履歴を持つ)
+            existing_msc = msc_existing.get(mat_id)
+            if existing_msc is None:
+                db.add(MaterialStandardCost(
+                    material_id=mat_id,
+                    period_id=period_id,
+                    unit_cost=new_price,
+                    notes="1.5原材料在庫 取込時に補完",
+                ))
+                msc_inserted += 1
+            elif Decimal(str(existing_msc.unit_cost)) != new_price:
+                existing_msc.unit_cost = new_price
+                msc_updated += 1
 
     batch.success_rows = success
     batch.error_rows = errors
@@ -350,6 +380,7 @@ async def process_raw_material_inventory_import(
     batch.notes = (
         f"materials 新規補完: {new_mat_count}件, SC有り: {sc_priced}件 / SC無し: {no_sc_count}件"
         + (f", マスタ単価更新: {master_updated}件" if update_master_price else "")
+        + (f", 期別単価 INS/UPD: {msc_inserted}/{msc_updated}件" if update_master_price else "")
         + (f", 在庫0スキップ: {skipped_zero}件" if skip_zero_stock else "")
     )
     batch.completed_at = datetime.now()
