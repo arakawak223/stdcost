@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,14 +30,21 @@ import {
   useUpdateProduct,
   useDeleteProduct,
 } from "@/hooks/use-products";
-import { formatNumber, formatDateTime, productTypeLabels } from "@/lib/format";
-import type { Product, ProductCreate } from "@/lib/api-client";
+import { useFiscalPeriods } from "@/hooks/use-masters";
+import { useStandardCosts } from "@/hooks/use-costs";
+import {
+  formatFiscalPeriod,
+  formatNumber,
+  productTypeLabels,
+} from "@/lib/format";
+import type { Product, ProductCreate, StandardCost } from "@/lib/api-client";
 import { Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [periodId, setPeriodId] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const perPage = 20;
@@ -55,10 +62,38 @@ export default function ProductsPage() {
     product_group: selectedGroup || undefined,
   });
   const { data: groups } = useProductGroups();
+  const { data: periods } = useFiscalPeriods();
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
 
+  const sortedPeriods = useMemo(
+    () =>
+      periods
+        ? [...periods].sort((a, b) => (a.start_date < b.start_date ? 1 : -1))
+        : [],
+    [periods]
+  );
+
+  // 初期表示: 最新期(=39期8か月目 2026/1)をデフォルト
+  useEffect(() => {
+    if (!periodId && sortedPeriods.length > 0) {
+      setPeriodId(sortedPeriods[0].id);
+    }
+  }, [sortedPeriods, periodId]);
+
+  const { data: standardCosts } = useStandardCosts(
+    periodId ? { period_id: periodId } : undefined
+  );
+
+  /** product_id → StandardCost(当期分) のルックアップ。 */
+  const costByProduct = useMemo(() => {
+    const m = new Map<string, StandardCost>();
+    standardCosts?.forEach((c) => m.set(c.product_id, c));
+    return m;
+  }, [standardCosts]);
+
+  const selectedPeriod = sortedPeriods.find((p) => p.id === periodId);
   const totalPages = Math.ceil((countData?.count || 0) / perPage);
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -184,7 +219,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -210,6 +245,26 @@ export default function ProductsPage() {
             <option key={g} value={g}>{g}</option>
           ))}
         </select>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="text-xs text-muted-foreground">参照期間:</label>
+          <select
+            value={periodId}
+            onChange={(e) => setPeriodId(e.target.value)}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">指定なし</option>
+            {sortedPeriods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {formatFiscalPeriod(p.year, p.month, p.start_date)}
+              </option>
+            ))}
+          </select>
+          {selectedPeriod && standardCosts && (
+            <span className="text-xs text-muted-foreground">
+              SC単価: {standardCosts.length}件
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -223,6 +278,7 @@ export default function ProductsPage() {
               <TableHead className="w-24">SCコード</TableHead>
               <TableHead className="w-24">製品群</TableHead>
               <TableHead className="w-16">単位</TableHead>
+              <TableHead className="w-32 text-right">当期SC単価</TableHead>
               <TableHead className="w-20">状態</TableHead>
               <TableHead className="w-24">操作</TableHead>
             </TableRow>
@@ -230,57 +286,73 @@ export default function ProductsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   読込中...
                 </TableCell>
               </TableRow>
             ) : products && products.length > 0 ? (
-              products.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-mono text-sm">{product.code}</TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {productTypeLabels[product.product_type] || product.product_type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm text-muted-foreground">
-                    {product.sc_code || "-"}
-                  </TableCell>
-                  <TableCell>
-                    {product.product_group && (
-                      <Badge variant="secondary">{product.product_group}</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{product.unit}</TableCell>
-                  <TableCell>
-                    <Badge variant={product.is_active ? "success" : "secondary"}>
-                      {product.is_active ? "有効" : "無効"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditProduct(product)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(product)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              products.map((product) => {
+                const cost = costByProduct.get(product.id);
+                return (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-mono text-sm">{product.code}</TableCell>
+                    <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {productTypeLabels[product.product_type] || product.product_type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm text-muted-foreground">
+                      {product.sc_code || "-"}
+                    </TableCell>
+                    <TableCell>
+                      {product.product_group && (
+                        <Badge variant="secondary">{product.product_group}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{product.unit}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {periodId ? (
+                        cost ? (
+                          <span title={`総額 ${formatNumber(cost.total_cost, 0)} / ロット ${formatNumber(cost.lot_size, 0)}`}>
+                            {formatNumber(cost.unit_cost, 2)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">未計算</span>
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={product.is_active ? "success" : "secondary"}>
+                        {product.is_active ? "有効" : "無効"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditProduct(product)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(product)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   データがありません
                 </TableCell>
               </TableRow>
