@@ -26,6 +26,11 @@ from app.services.raw_material_inventory_import import (
     DEFAULT_WAREHOUSE as RAW_DEFAULT_WAREHOUSE,
     process_raw_material_inventory_import,
 )
+from app.services.wip_sc_import import (
+    SHEET_PRICES as WIP_PRICE_SHEET,
+    SHEET_NAYOSE as WIP_NAYOSE_SHEET,
+    process_wip_sc_import,
+)
 
 router = APIRouter()
 
@@ -289,6 +294,59 @@ async def upload_raw_material_inventory_file(
         message = f"インポート失敗: {batch.error_rows}件のエラー"
     else:
         message = f"{batch.success_rows}件の原材料在庫を正常にインポートしました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/wip-sc", response_model=ImportUploadResponse)
+async def upload_wip_sc_file(
+    file: UploadFile,
+    period_id: uuid.UUID = Form(...),
+    price_sheet: str = Form(WIP_PRICE_SHEET),
+    nayose_sheet: str = Form(WIP_NAYOSE_SHEET),
+    source_system: str = Form("manual"),
+    db: AsyncSession = Depends(get_db),
+):
+    """決算用SC仕掛品.xlsx を取り込み、wip_standard_costs と
+    products.sc_consolidation_key を更新する。
+
+    取込対象シート:
+      - 仕掛品標準単価一覧表（貼付） → wip_standard_costs upsert (39件)
+      - 仕掛品名寄（貼付） → products.sc_consolidation_key 解決
+    最後に在庫評価金額 (inventory_valuations.valuation_amount) を再計算。
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Excelファイル (.xlsx) をアップロードしてください")
+
+    content = await file.read()
+
+    batch = await process_wip_sc_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        period_id=period_id,
+        price_sheet=price_sheet,
+        nayose_sheet=nayose_sheet,
+        source_system=source_system,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+    if batch.error_rows > 0 and batch.success_rows > 0:
+        message = f"{batch.success_rows}件成功、{batch.error_rows}件エラー"
+    elif batch.error_rows > 0:
+        message = f"インポート失敗: {batch.error_rows}件のエラー"
+    else:
+        message = f"仕掛品SC単価 {batch.success_rows}件を取り込みました"
 
     return ImportUploadResponse(
         batch_id=batch.id,

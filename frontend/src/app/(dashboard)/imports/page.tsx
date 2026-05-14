@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileText, AlertCircle } from "lucide-react";
+import { Upload, FileText, AlertCircle, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useFiscalPeriods } from "@/hooks/use-masters";
-import { useImportBatches, useUploadImport } from "@/hooks/use-imports";
+import { useImportBatches, useUploadImport, useUploadWipSc } from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
 
@@ -44,14 +44,24 @@ export default function ImportsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [detailBatch, setDetailBatch] = useState<ImportBatch | null>(null);
 
+  const [wipPeriodId, setWipPeriodId] = useState("");
+  const [wipFile, setWipFile] = useState<File | null>(null);
+
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
   const upload = useUploadImport();
+  const uploadWipSc = useUploadWipSc();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
     await upload.mutateAsync({ file, source_system: sourceSystem, period_id: periodId });
     setFile(null);
+  };
+
+  const handleUploadWipSc = async () => {
+    if (!wipFile || !wipPeriodId) return;
+    await uploadWipSc.mutateAsync({ file: wipFile, period_id: wipPeriodId });
+    setWipFile(null);
   };
 
   return (
@@ -122,6 +132,71 @@ export default function ImportsPage() {
               <p className="text-sm font-medium">{upload.data.message}</p>
               <p className="text-xs text-muted-foreground">
                 合計: {upload.data.total_rows}行 / 成功: {upload.data.success_rows}行 / エラー: {upload.data.error_rows}行
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 仕掛品SC単価 専用アップロード */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Layers className="h-5 w-5" />
+            仕掛品SC単価Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">決算用SC仕掛品.xlsx</span> をアップロードし、
+            <strong>仕掛品標準単価一覧表（貼付）</strong> から <code>wip_standard_costs</code> を更新、
+            <strong>仕掛品名寄（貼付）</strong> から <code>products.sc_consolidation_key</code> を解決します。
+            完了後に半製品の在庫評価金額を自動で再計算します。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計期間</label>
+              <select
+                className="rounded-md border px-3 py-2 text-sm"
+                value={wipPeriodId}
+                onChange={(e) => setWipPeriodId(e.target.value)}
+              >
+                <option value="">選択...</option>
+                {periods?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={wipFile?.name || "empty"}
+                onChange={(e) => setWipFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <Button
+              onClick={handleUploadWipSc}
+              disabled={!wipFile || !wipPeriodId || uploadWipSc.isPending}
+            >
+              {uploadWipSc.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadWipSc.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadWipSc.error as Error).message}
+            </p>
+          )}
+          {uploadWipSc.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadWipSc.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadWipSc.data.total_rows}行 / 成功: {uploadWipSc.data.success_rows}行 /
+                エラー: {uploadWipSc.data.error_rows}行
               </p>
             </div>
           )}

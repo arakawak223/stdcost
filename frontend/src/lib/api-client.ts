@@ -336,6 +336,67 @@ export const materialStandardCostsApi = {
     fetchApi<{ message: string }>(`/costs/material-standard/${id}`, { method: "DELETE" }),
 };
 
+// WipStandardCost (仕掛品標準単価・期別・名寄せキー単位)
+export interface WipStandardCost {
+  id: string;
+  consolidation_key: string;
+  period_id: string;
+  unit_cost: string;
+  pre_process_cost: string;
+  material_cost: string;
+  labor_cost: string;
+  expense_cost: string;
+  effective_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WipStandardCostCreate {
+  consolidation_key: string;
+  period_id: string;
+  unit_cost: string;
+  pre_process_cost?: string;
+  material_cost?: string;
+  labor_cost?: string;
+  expense_cost?: string;
+  effective_date?: string | null;
+  notes?: string | null;
+}
+
+export interface WipStandardCostUpdate {
+  unit_cost?: string;
+  pre_process_cost?: string;
+  material_cost?: string;
+  labor_cost?: string;
+  expense_cost?: string;
+  effective_date?: string | null;
+  notes?: string | null;
+}
+
+export const wipStandardCostsApi = {
+  list: (params?: { consolidation_key?: string; period_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.consolidation_key) sp.set("consolidation_key", params.consolidation_key);
+    if (params?.period_id) sp.set("period_id", params.period_id);
+    const qs = sp.toString();
+    return fetchApi<WipStandardCost[]>(`/costs/wip-standard${qs ? `?${qs}` : ""}`);
+  },
+  get: (id: string) => fetchApi<WipStandardCost>(`/costs/wip-standard/${id}`),
+  create: (data: WipStandardCostCreate) =>
+    fetchApi<WipStandardCost>("/costs/wip-standard", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: WipStandardCostUpdate) =>
+    fetchApi<WipStandardCost>(`/costs/wip-standard/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi<{ message: string }>(`/costs/wip-standard/${id}`, { method: "DELETE" }),
+};
+
 // Contractors (外注先)
 export interface Contractor {
   id: string;
@@ -886,6 +947,16 @@ export const importsApi = {
     formData.append("source_system", data.source_system);
     formData.append("period_id", data.period_id);
     return fetchApiMultipart<ImportUploadResponse>("/imports/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  /** 仕掛品 SC 単価 Excel (決算用SC仕掛品.xlsx) アップロード。 */
+  uploadWipSc: (data: { file: File; period_id: string }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("period_id", data.period_id);
+    return fetchApiMultipart<ImportUploadResponse>("/imports/wip-sc", {
       method: "POST",
       body: formData,
     });

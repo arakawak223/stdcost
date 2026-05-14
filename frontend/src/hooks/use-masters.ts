@@ -5,11 +5,14 @@ import {
   costCentersApi,
   materialsApi,
   materialStandardCostsApi,
+  wipStandardCostsApi,
   crudeProductsApi,
   contractorsApi,
   fiscalPeriodsApi,
   type MaterialStandardCostCreate,
   type MaterialStandardCostUpdate,
+  type WipStandardCostCreate,
+  type WipStandardCostUpdate,
 } from "@/lib/api-client";
 
 export function useCostCenters(params?: { center_type?: string; is_active?: boolean }) {
@@ -117,6 +120,43 @@ export function useMaterialStandardCostMutations() {
   });
   const remove = useMutation({
     mutationFn: (id: string) => materialStandardCostsApi.delete(id),
+    onSuccess: invalidate,
+  });
+  return { create, update, remove };
+}
+
+/** 期別の仕掛品(半製品)標準単価。consolidation_key × period_id で管理。 */
+export function useWipStandardCosts(params?: {
+  consolidation_key?: string;
+  period_id?: string;
+}) {
+  const enabled = Boolean(params?.consolidation_key || params?.period_id);
+  return useQuery({
+    queryKey: ["wip-standard-costs", params],
+    queryFn: () => wipStandardCostsApi.list(params),
+    enabled,
+  });
+}
+
+/** 仕掛品 SC 単価の作成/更新/削除。保存後はキャッシュ＋在庫評価を invalidate。 */
+export function useWipStandardCostMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["wip-standard-costs"] });
+    qc.invalidateQueries({ queryKey: ["inventory-valuations"] });
+  };
+  const create = useMutation({
+    mutationFn: (data: WipStandardCostCreate) =>
+      wipStandardCostsApi.create(data),
+    onSuccess: invalidate,
+  });
+  const update = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: WipStandardCostUpdate }) =>
+      wipStandardCostsApi.update(id, data),
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => wipStandardCostsApi.delete(id),
     onSuccess: invalidate,
   });
   return { create, update, remove };

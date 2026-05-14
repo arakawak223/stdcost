@@ -20,6 +20,7 @@ import {
   Bot,
   Scale,
   Boxes,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ const costNavigation = [
   { name: "配賦ルール", href: "/allocation-rules", icon: SplitSquareVertical },
   { name: "予算管理", href: "/cost-budgets", icon: Wallet },
   { name: "標準原価計算", href: "/standard-costs", icon: Calculator },
+  { name: "仕掛品SC単価", href: "/wip-standard-costs", icon: Layers },
 ];
 
 const analysisNavigation = [

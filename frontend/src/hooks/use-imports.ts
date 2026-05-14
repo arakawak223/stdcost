@@ -28,3 +28,19 @@ export function useUploadImport() {
     },
   });
 }
+
+/** 仕掛品 SC 単価 Excel アップロード。成功後は wip-standard-costs と
+ *  在庫評価のキャッシュも invalidate する。
+ */
+export function useUploadWipSc() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { file: File; period_id: string }) =>
+      importsApi.uploadWipSc(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["wip-standard-costs"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-valuations"] });
+    },
+  });
+}
