@@ -21,6 +21,7 @@ from app.models.cost import (
     MaterialStandardCost,
     MovementType,
     StandardCost,
+    WipStandardCost,
 )
 from app.models.master import CrudeProduct, FiscalPeriod, Material, Product
 from app.schemas.inventory_valuation import (
@@ -268,6 +269,25 @@ async def recalculate_valuation_amounts(
     mat_fallback = {row[0]: Decimal(str(row[1])) for row in mat_result.all()}
     mat_map = {**mat_fallback, **msc_map}
 
+    # 仕掛品単価: wip_standard_costs を期別で取得し、Product.sc_consolidation_key
+    # 経由で参照する。半製品 (semi_finished) で StandardCost が0 のときの優先補完源。
+    wip_result = await db.execute(
+        select(WipStandardCost.consolidation_key, WipStandardCost.unit_cost).where(
+            WipStandardCost.period_id == period_id
+        )
+    )
+    wip_map: dict[str, Decimal] = {
+        row[0]: Decimal(str(row[1])) for row in wip_result.all()
+    }
+    prod_key_result = await db.execute(
+        select(Product.id, Product.sc_consolidation_key).where(
+            Product.sc_consolidation_key.is_not(None)
+        )
+    )
+    product_to_key: dict[uuid.UUID, str] = {
+        row[0]: row[1] for row in prod_key_result.all()
+    }
+
     # 全件取得して再計算
     inv_result = await db.execute(
         select(InventoryValuation).where(InventoryValuation.period_id == period_id)
@@ -277,11 +297,20 @@ async def recalculate_valuation_amounts(
     updated = 0
     for inv in invs:
         new_price: Decimal | None = None
-        if inv.product_id and inv.product_id in std_map:
+        # 半製品は wip_standard_costs を最優先 (sc_consolidation_key 経由)
+        if (
+            inv.category == InventoryCategory.semi_finished
+            and inv.product_id
+            and inv.product_id in product_to_key
+        ):
+            key = product_to_key[inv.product_id]
+            if key in wip_map:
+                new_price = wip_map[key]
+        if new_price is None and inv.product_id and inv.product_id in std_map:
             new_price = std_map[inv.product_id]
-        elif inv.crude_product_id and inv.crude_product_id in crude_map:
+        elif new_price is None and inv.crude_product_id and inv.crude_product_id in crude_map:
             new_price = crude_map[inv.crude_product_id]
-        elif inv.material_id and inv.material_id in mat_map:
+        elif new_price is None and inv.material_id and inv.material_id in mat_map:
             new_price = mat_map[inv.material_id]
 
         if new_price is not None and new_price != inv.standard_unit_price:

@@ -121,6 +121,64 @@ class MaterialStandardCostBulkUpsertResponse(BaseModel):
     unchanged: int
 
 
+# --- WipStandardCost (仕掛品標準単価 / 期別) ---
+
+class WipStandardCostBase(BaseModel):
+    consolidation_key: str = Field(max_length=50)
+    period_id: uuid.UUID
+    unit_cost: Decimal = Field(decimal_places=4)
+    pre_process_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    material_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    labor_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    expense_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    effective_date: date | None = None
+    notes: str | None = None
+
+
+class WipStandardCostCreate(WipStandardCostBase):
+    pass
+
+
+class WipStandardCostUpdate(BaseModel):
+    unit_cost: Decimal | None = None
+    pre_process_cost: Decimal | None = None
+    material_cost: Decimal | None = None
+    labor_cost: Decimal | None = None
+    expense_cost: Decimal | None = None
+    effective_date: date | None = None
+    notes: str | None = None
+
+
+class WipStandardCostRead(WipStandardCostBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class WipStandardCostBulkUpsertItem(BaseModel):
+    consolidation_key: str = Field(max_length=50)
+    unit_cost: Decimal = Field(decimal_places=4)
+    pre_process_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    material_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    labor_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    expense_cost: Decimal = Field(default=Decimal("0"), decimal_places=4)
+    effective_date: date | None = None
+    notes: str | None = None
+
+
+class WipStandardCostBulkUpsertRequest(BaseModel):
+    period_id: uuid.UUID
+    items: list[WipStandardCostBulkUpsertItem]
+
+
+class WipStandardCostBulkUpsertResponse(BaseModel):
+    period_id: uuid.UUID
+    inserted: int
+    updated: int
+    unchanged: int
+
+
 # --- Calculation Request/Response ---
 
 class CalculateRequest(BaseModel):

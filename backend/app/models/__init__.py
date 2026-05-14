@@ -22,6 +22,7 @@ from app.models.cost import (
     InventoryValuation,
     MaterialStandardCost,
     StandardCost,
+    WipStandardCost,
 )
 from app.models.variance import VarianceRecord
 from app.models.audit import AIExplanation, AuditLog, ImportBatch, ImportError, ReconciliationResult
@@ -42,6 +43,7 @@ __all__ = [
     "StandardCost",
     "CrudeProductStandardCost",
     "MaterialStandardCost",
+    "WipStandardCost",
     "ActualCost",
     "CrudeProductActualCost",
     "InventoryMovement",

@@ -132,6 +132,50 @@ class CrudeProductStandardCost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     period: Mapped[FiscalPeriod] = relationship("FiscalPeriod", lazy="selectin")
 
 
+class WipStandardCost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """仕掛品(半製品)標準単価(期別) - SC計算上の名寄せキー × 期間 で単価を管理。
+
+    データソース: `docs/reference/決算用SC仕掛品.xlsx`
+        - 「仕掛品標準単価一覧表（貼付）」シート (38件のキー別単価)
+        - 「仕掛品名寄（貼付）」シート (469件の番手付きコード→種類マッピング)
+    在庫評価では Product.sc_consolidation_key 経由で WIP の SC 単価を取得する。
+    """
+    __tablename__ = "wip_standard_costs"
+    __table_args__ = (
+        UniqueConstraint(
+            "consolidation_key", "period_id",
+            name="uq_wip_std_cost_key_period",
+        ),
+    )
+
+    consolidation_key: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True,
+        comment="名寄せキー(B/BM/FB/G/GP/MP/O/P等)",
+    )
+    period_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("fiscal_periods.id"), nullable=False, index=True
+    )
+    unit_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, comment="SC単価合計(¥/kg)"
+    )
+    pre_process_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, default=0, comment="前工程費(¥/kg)"
+    )
+    material_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, default=0, comment="原材料費(¥/kg)"
+    )
+    labor_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, default=0, comment="労務費(¥/kg)"
+    )
+    expense_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4), nullable=False, default=0, comment="経費(¥/kg)"
+    )
+    effective_date: Mapped[date | None] = mapped_column(Date, comment="適用開始日(参考)")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    period: Mapped[FiscalPeriod] = relationship("FiscalPeriod", lazy="selectin")
+
+
 class MaterialStandardCost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """原材料標準単価(期別) - 原材料の標準単価を期ごとに管理。
 

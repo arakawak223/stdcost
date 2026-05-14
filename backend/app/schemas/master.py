@@ -144,6 +144,7 @@ class ProductBase(BaseModel):
     standard_lot_size: Decimal = Field(default=Decimal("1"), decimal_places=4)
     is_active: bool = True
     notes: str | None = None
+    sc_consolidation_key: str | None = Field(default=None, max_length=50)
 
 
 class ProductCreate(ProductBase):
@@ -163,6 +164,7 @@ class ProductUpdate(BaseModel):
     standard_lot_size: Decimal | None = None
     is_active: bool | None = None
     notes: str | None = None
+    sc_consolidation_key: str | None = Field(default=None, max_length=50)
 
 
 class ProductRead(ProductBase):

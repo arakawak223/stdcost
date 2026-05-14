@@ -228,6 +228,10 @@ class Product(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     standard_lot_size: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=1)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+    sc_consolidation_key: Mapped[str | None] = mapped_column(
+        String(50), index=True,
+        comment="SC計算上の名寄せキー(B/BM/FB/G/GP/MP/O/P等)。半製品の単価集約用。",
+    )
 
     bom_headers: Mapped[list["BomHeader"]] = relationship("BomHeader", back_populates="product", lazy="selectin")
 
