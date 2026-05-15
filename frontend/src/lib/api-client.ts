@@ -961,6 +961,69 @@ export const importsApi = {
       body: formData,
     });
   },
+  /** 製品増減内訳表 Excel アップロード。InventoryMovement に登録する。 */
+  uploadProductMovements: (data: {
+    file: File;
+    period_id: string;
+    delete_existing?: boolean;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("period_id", data.period_id);
+    if (data.delete_existing !== undefined) {
+      formData.append("delete_existing", String(data.delete_existing));
+    }
+    return fetchApiMultipart<ImportUploadResponse>("/imports/product-movements", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  /** 2.9原液在庫シート Excel アップロード。crude_product 在庫を登録する。 */
+  uploadCrudeInventory: (data: {
+    file: File;
+    period_id: string;
+    delete_existing?: boolean;
+    skip_zero_stock?: boolean;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("period_id", data.period_id);
+    if (data.delete_existing !== undefined) {
+      formData.append("delete_existing", String(data.delete_existing));
+    }
+    if (data.skip_zero_stock !== undefined) {
+      formData.append("skip_zero_stock", String(data.skip_zero_stock));
+    }
+    return fetchApiMultipart<ImportUploadResponse>("/imports/crude-inventory", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  /** 決算用SC原材料.xlsx (1.5原材料在庫 + 原材料SC明細) アップロード。 */
+  uploadRawMaterialInventory: (data: {
+    file: File;
+    period_id: string;
+    delete_existing?: boolean;
+    skip_zero_stock?: boolean;
+    update_master_price?: boolean;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("period_id", data.period_id);
+    if (data.delete_existing !== undefined) {
+      formData.append("delete_existing", String(data.delete_existing));
+    }
+    if (data.skip_zero_stock !== undefined) {
+      formData.append("skip_zero_stock", String(data.skip_zero_stock));
+    }
+    if (data.update_master_price !== undefined) {
+      formData.append("update_master_price", String(data.update_master_price));
+    }
+    return fetchApiMultipart<ImportUploadResponse>("/imports/raw-material-inventory", {
+      method: "POST",
+      body: formData,
+    });
+  },
   list: (params?: { source_system?: string; period_id?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.source_system) searchParams.set("source_system", params.source_system);

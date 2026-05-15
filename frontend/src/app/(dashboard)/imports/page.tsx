@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileText, AlertCircle, Layers } from "lucide-react";
+import {
+  Upload,
+  FileText,
+  AlertCircle,
+  Layers,
+  Beaker,
+  Package,
+  ArrowLeftRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +28,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useFiscalPeriods } from "@/hooks/use-masters";
-import { useImportBatches, useUploadImport, useUploadWipSc } from "@/hooks/use-imports";
+import {
+  useImportBatches,
+  useUploadImport,
+  useUploadWipSc,
+  useUploadProductMovements,
+  useUploadCrudeInventory,
+  useUploadRawMaterialInventory,
+} from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
 
@@ -47,10 +62,28 @@ export default function ImportsPage() {
   const [wipPeriodId, setWipPeriodId] = useState("");
   const [wipFile, setWipFile] = useState<File | null>(null);
 
+  const [crudePeriodId, setCrudePeriodId] = useState("");
+  const [crudeFile, setCrudeFile] = useState<File | null>(null);
+  const [crudeDeleteExisting, setCrudeDeleteExisting] = useState(true);
+  const [crudeSkipZero, setCrudeSkipZero] = useState(false);
+
+  const [rawPeriodId, setRawPeriodId] = useState("");
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [rawDeleteExisting, setRawDeleteExisting] = useState(true);
+  const [rawSkipZero, setRawSkipZero] = useState(false);
+  const [rawUpdateMaster, setRawUpdateMaster] = useState(true);
+
+  const [movePeriodId, setMovePeriodId] = useState("");
+  const [moveFile, setMoveFile] = useState<File | null>(null);
+  const [moveDeleteExisting, setMoveDeleteExisting] = useState(true);
+
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
   const upload = useUploadImport();
   const uploadWipSc = useUploadWipSc();
+  const uploadCrude = useUploadCrudeInventory();
+  const uploadRaw = useUploadRawMaterialInventory();
+  const uploadMove = useUploadProductMovements();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
@@ -62,6 +95,39 @@ export default function ImportsPage() {
     if (!wipFile || !wipPeriodId) return;
     await uploadWipSc.mutateAsync({ file: wipFile, period_id: wipPeriodId });
     setWipFile(null);
+  };
+
+  const handleUploadCrude = async () => {
+    if (!crudeFile || !crudePeriodId) return;
+    await uploadCrude.mutateAsync({
+      file: crudeFile,
+      period_id: crudePeriodId,
+      delete_existing: crudeDeleteExisting,
+      skip_zero_stock: crudeSkipZero,
+    });
+    setCrudeFile(null);
+  };
+
+  const handleUploadRaw = async () => {
+    if (!rawFile || !rawPeriodId) return;
+    await uploadRaw.mutateAsync({
+      file: rawFile,
+      period_id: rawPeriodId,
+      delete_existing: rawDeleteExisting,
+      skip_zero_stock: rawSkipZero,
+      update_master_price: rawUpdateMaster,
+    });
+    setRawFile(null);
+  };
+
+  const handleUploadMove = async () => {
+    if (!moveFile || !movePeriodId) return;
+    await uploadMove.mutateAsync({
+      file: moveFile,
+      period_id: movePeriodId,
+      delete_existing: moveDeleteExisting,
+    });
+    setMoveFile(null);
   };
 
   return (
@@ -197,6 +263,246 @@ export default function ImportsPage() {
               <p className="text-xs text-muted-foreground">
                 合計: {uploadWipSc.data.total_rows}行 / 成功: {uploadWipSc.data.success_rows}行 /
                 エラー: {uploadWipSc.data.error_rows}行
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 2.9原液在庫 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Beaker className="h-5 w-5" />
+            2.9原液在庫 Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <strong>2.9原液在庫</strong> シート (Section 1, コード形式 1-XX-Y) を取込み、
+            <code>inventory_valuations</code> に <code>category=crude_product</code> として登録します。
+            未登録コードは <code>crude_products</code> に自動INSERT。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計期間</label>
+              <select
+                className="rounded-md border px-3 py-2 text-sm"
+                value={crudePeriodId}
+                onChange={(e) => setCrudePeriodId(e.target.value)}
+              >
+                <option value="">選択...</option>
+                {periods?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={crudeFile?.name || "empty"}
+                onChange={(e) => setCrudeFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={crudeDeleteExisting}
+                onChange={(e) => setCrudeDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={crudeSkipZero}
+                onChange={(e) => setCrudeSkipZero(e.target.checked)}
+              />
+              ゼロ在庫スキップ
+            </label>
+            <Button
+              onClick={handleUploadCrude}
+              disabled={!crudeFile || !crudePeriodId || uploadCrude.isPending}
+            >
+              {uploadCrude.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadCrude.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadCrude.error as Error).message}
+            </p>
+          )}
+          {uploadCrude.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadCrude.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadCrude.data.total_rows}行 / 成功: {uploadCrude.data.success_rows}行 /
+                エラー: {uploadCrude.data.error_rows}行
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 1.5原材料在庫 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            1.5原材料在庫 (決算用SC原材料.xlsx) 取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <strong>1.5原材料在庫</strong> シートをロット集約し、
+            <strong>原材料SC明細</strong> から SC単価を取得して
+            <code>inventory_valuations</code> (<code>category=raw_material</code>) に登録します。
+            未登録コードは <code>materials</code> に自動INSERT。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計期間</label>
+              <select
+                className="rounded-md border px-3 py-2 text-sm"
+                value={rawPeriodId}
+                onChange={(e) => setRawPeriodId(e.target.value)}
+              >
+                <option value="">選択...</option>
+                {periods?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={rawFile?.name || "empty"}
+                onChange={(e) => setRawFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={rawDeleteExisting}
+                onChange={(e) => setRawDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={rawSkipZero}
+                onChange={(e) => setRawSkipZero(e.target.checked)}
+              />
+              ゼロ在庫スキップ
+            </label>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={rawUpdateMaster}
+                onChange={(e) => setRawUpdateMaster(e.target.checked)}
+              />
+              マスタ単価更新
+            </label>
+            <Button
+              onClick={handleUploadRaw}
+              disabled={!rawFile || !rawPeriodId || uploadRaw.isPending}
+            >
+              {uploadRaw.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadRaw.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadRaw.error as Error).message}
+            </p>
+          )}
+          {uploadRaw.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadRaw.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadRaw.data.total_rows}行 / 成功: {uploadRaw.data.success_rows}行 /
+                エラー: {uploadRaw.data.error_rows}行
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 製品増減内訳表 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ArrowLeftRight className="h-5 w-5" />
+            製品増減内訳表 Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <strong>製品増減内訳表</strong> シートから期首/生産/販売/販促/.../期末などの数量変動を
+            <code>inventory_movements</code> に登録します。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計期間</label>
+              <select
+                className="rounded-md border px-3 py-2 text-sm"
+                value={movePeriodId}
+                onChange={(e) => setMovePeriodId(e.target.value)}
+              >
+                <option value="">選択...</option>
+                {periods?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={moveFile?.name || "empty"}
+                onChange={(e) => setMoveFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={moveDeleteExisting}
+                onChange={(e) => setMoveDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <Button
+              onClick={handleUploadMove}
+              disabled={!moveFile || !movePeriodId || uploadMove.isPending}
+            >
+              {uploadMove.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadMove.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadMove.error as Error).message}
+            </p>
+          )}
+          {uploadMove.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadMove.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadMove.data.total_rows}行 / 成功: {uploadMove.data.success_rows}行 /
+                エラー: {uploadMove.data.error_rows}行
               </p>
             </div>
           )}
