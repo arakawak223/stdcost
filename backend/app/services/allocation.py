@@ -10,7 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cost import CostAllocation, CostElement
-from app.models.master import AllocationBasis, AllocationRule
+from app.models.master import (
+    AllocationBasis,
+    AllocationRule,
+    CrudeProductProcessRoute,
+)
 
 ZERO = Decimal("0")
 FOUR = Decimal("0.0001")
@@ -49,6 +53,34 @@ def allocate_by_quantity(
             allocated_sum += amount
 
     return result
+
+
+async def load_route_actual_quantities(
+    db: AsyncSession,
+    period_id,
+    process_id=None,
+) -> dict[str, dict]:
+    """Load (crude_id, process_id) → {"actual_quantity": Decimal, ...} for the period.
+
+    Returns item_data dict keyed by "{crude_id}:{process_id}" string,
+    suitable for passing to execute_rule_based_allocation as item_data.
+    If process_id is provided, filter to only that process.
+    """
+    q = select(CrudeProductProcessRoute).where(
+        CrudeProductProcessRoute.period_id == period_id
+    )
+    if process_id is not None:
+        q = q.where(CrudeProductProcessRoute.process_id == process_id)
+    result = await db.execute(q)
+    item_data: dict[str, dict] = {}
+    for r in result.scalars().unique().all():
+        key = f"{r.crude_product_id}:{r.process_id}"
+        item_data[key] = {
+            "actual_quantity": Decimal(str(r.actual_quantity)),
+            "crude_product_id": str(r.crude_product_id),
+            "process_id": str(r.process_id),
+        }
+    return item_data
 
 
 async def load_allocation_rules(
@@ -112,6 +144,10 @@ def compute_allocation_quantities(
                 quantities[item_id] = Decimal(str(hours))
             else:
                 quantities[item_id] = Decimal(str(data.get("raw_material_quantity", 0)))
+        elif basis == AllocationBasis.actual_quantity:
+            # Use actual_quantity from crude_product_process_routes
+            # (or directly provided via item_data["actual_quantity"]).
+            quantities[item_id] = Decimal(str(data.get("actual_quantity", 0)))
         elif basis == AllocationBasis.manual:
             # Manual uses ratio from AllocationRuleTarget; handled separately.
             quantities[item_id] = ZERO

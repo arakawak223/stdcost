@@ -31,6 +31,10 @@ from app.services.wip_sc_import import (
     SHEET_NAYOSE as WIP_NAYOSE_SHEET,
     process_wip_sc_import,
 )
+from app.services.crude_process_route_import import (
+    SHEET_ROUTES as CRUDE_ROUTES_SHEET,
+    process_crude_process_route_import,
+)
 
 router = APIRouter()
 
@@ -347,6 +351,51 @@ async def upload_wip_sc_file(
         message = f"インポート失敗: {batch.error_rows}件のエラー"
     else:
         message = f"仕掛品SC単価 {batch.success_rows}件を取り込みました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/crude-process-routes", response_model=ImportUploadResponse)
+async def upload_crude_process_routes(
+    file: UploadFile,
+    period_id: uuid.UUID = Form(...),
+    sheet_name: str = Form(CRUDE_ROUTES_SHEET),
+    source_system: str = Form("manual"),
+    db: AsyncSession = Depends(get_db),
+):
+    """原価計算 xlsb (例: 第38期原価計算v8(最終)_260225.xlsb) から
+    `2.1④` シートを読み、原液×工程の実績数量を crude_product_process_routes に
+    upsert する。
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsb"):
+        raise HTTPException(status_code=400, detail="xlsbファイル (.xlsb) をアップロードしてください")
+
+    content = await file.read()
+
+    batch = await process_crude_process_route_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        period_id=period_id,
+        sheet_name=sheet_name,
+        source_system=source_system,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+    if batch.status == "failed":
+        message = f"インポート失敗: {batch.notes or ''}"
+    else:
+        message = f"原液×工程ルート {batch.success_rows}件を取り込みました"
 
     return ImportUploadResponse(
         batch_id=batch.id,
