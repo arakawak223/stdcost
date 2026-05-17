@@ -132,6 +132,7 @@ class AllocationBasis(str, enum.Enum):
     raw_material_quantity = "raw_material_quantity"  # 原料使用数量（経費配賦）
     crude_quantity = "crude_quantity"              # 原体数量
     weight_based = "weight_based"                 # 重量基準
+    actual_quantity = "actual_quantity"           # 原液×工程の実績数量（工程単位配賦）
     manual = "manual"                             # 手動設定
 
 
@@ -245,6 +246,58 @@ class Contractor(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name_short: Mapped[str | None] = mapped_column(String(50))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class Process(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """原液発酵プロセス上の工程マスタ。
+
+    仕込・添加混合・調合・ろ過・圧搾・C/I・工程ロスなど、原液製造の各ステップを表す。
+    実績数量(時間/重量/処理量)による配賦の基準となる。
+    """
+    __tablename__ = "processes"
+
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, default=0, comment="原液製造フロー上の標準順序(1:仕込→...→7:充填)"
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class CrudeProductProcessRoute(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """原液 × 工程の実績ルート。期別の作業量を保持し、工程単位配賦の按分基準となる。"""
+    __tablename__ = "crude_product_process_routes"
+    __table_args__ = (
+        UniqueConstraint(
+            "crude_product_id", "process_id", "period_id",
+            name="uq_crude_process_period",
+        ),
+    )
+
+    crude_product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("crude_products.id"), nullable=False, index=True
+    )
+    process_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("processes.id"), nullable=False, index=True
+    )
+    period_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("fiscal_periods.id"), nullable=False, index=True
+    )
+    sequence_no: Mapped[int | None] = mapped_column(
+        Integer, comment="この原液内での工程通過順序(1=最初の工程, 2=次の工程, ...)"
+    )
+    actual_quantity: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0"),
+        comment="実績数量(主に原材料投入量・処理量、配賦基準量)"
+    )
+    actual_hours: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 4), comment="作業時間(分または時間、補助基準)"
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    crude_product: Mapped["CrudeProduct"] = relationship("CrudeProduct", lazy="selectin")
+    process: Mapped[Process] = relationship("Process", lazy="selectin")
 
 
 class BomHeader(UUIDPrimaryKeyMixin, TimestampMixin, Base):

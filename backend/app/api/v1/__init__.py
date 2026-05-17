@@ -16,6 +16,7 @@ from app.api.v1 import (
     inventory_valuations,
     material_standard_costs,
     materials,
+    processes,
     products,
     reconciliation,
     variances,
@@ -29,6 +30,7 @@ router.include_router(crude_products.router, prefix="/masters/crude-products", t
 router.include_router(cost_centers.router, prefix="/masters/cost-centers", tags=["部門マスタ"])
 router.include_router(materials.router, prefix="/masters/materials", tags=["原材料マスタ"])
 router.include_router(contractors.router, prefix="/masters/contractors", tags=["外注先マスタ"])
+router.include_router(processes.router, prefix="/masters/processes", tags=["工程マスタ"])
 router.include_router(fiscal_periods.router, prefix="/masters/fiscal-periods", tags=["会計期間"])
 router.include_router(bom.router, prefix="/masters/bom", tags=["BOM管理"])
 router.include_router(allocation_rules.router, prefix="/masters/allocation-rules", tags=["配賦ルール"])

@@ -202,6 +202,69 @@ class ContractorRead(ContractorBase):
     updated_at: datetime
 
 
+# --- Process (工程) ---
+
+class ProcessBase(BaseModel):
+    code: str = Field(max_length=20)
+    name: str = Field(max_length=100)
+    sort_order: int = 0
+    is_active: bool = True
+    notes: str | None = None
+
+
+class ProcessCreate(ProcessBase):
+    pass
+
+
+class ProcessUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=100)
+    sort_order: int | None = None
+    is_active: bool | None = None
+    notes: str | None = None
+
+
+class ProcessRead(ProcessBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- CrudeProductProcessRoute (原液×工程ルート) ---
+
+class CrudeProductProcessRouteBase(BaseModel):
+    crude_product_id: uuid.UUID
+    process_id: uuid.UUID
+    period_id: uuid.UUID
+    sequence_no: int | None = None
+    actual_quantity: Decimal = Decimal("0")
+    actual_hours: Decimal | None = None
+    notes: str | None = None
+
+
+class CrudeProductProcessRouteCreate(CrudeProductProcessRouteBase):
+    pass
+
+
+class CrudeProductProcessRouteUpdate(BaseModel):
+    sequence_no: int | None = None
+    actual_quantity: Decimal | None = None
+    actual_hours: Decimal | None = None
+    notes: str | None = None
+
+
+class CrudeProductProcessRouteRead(CrudeProductProcessRouteBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    # denormalized
+    crude_product_code: str | None = None
+    crude_product_name: str | None = None
+    process_code: str | None = None
+    process_name: str | None = None
+
+
 # --- FiscalPeriod ---
 
 class FiscalPeriodBase(BaseModel):

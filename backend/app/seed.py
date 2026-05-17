@@ -26,6 +26,7 @@ from app.models.master import (
     MaterialCategory,
     MaterialType,
     PeriodStatus,
+    Process,
     Product,
     ProductType,
 )
@@ -813,6 +814,27 @@ async def seed_contractors(db: AsyncSession) -> None:
     ]
     db.add_all(contractors)
     print(f"  外注先マスタ: {len(contractors)}件 作成")
+
+
+async def seed_processes(db: AsyncSession) -> None:
+    existing = await db.execute(select(Process).limit(1))
+    if existing.scalar_one_or_none():
+        print("  工程マスタ: スキップ（既存データあり）")
+        return
+
+    # 38期原価計算.xlsb 内に登場する工程種類 (2.1④/1.3 など)
+    processes = [
+        Process(code="002", name="仕込工程", sort_order=1),
+        Process(code="006", name="添加･混合工程", sort_order=2),
+        Process(code="010", name="調合工程", sort_order=3),
+        Process(code="020", name="ろ過工程", sort_order=4),
+        Process(code="030", name="圧搾工程", sort_order=5),
+        Process(code="040", name="I工程", sort_order=6),
+        Process(code="050", name="C工程", sort_order=7),
+        Process(code="900", name="工程ロス", sort_order=99, notes="ロス計上用"),
+    ]
+    db.add_all(processes)
+    print(f"  工程マスタ: {len(processes)}件 作成")
 
 
 async def seed_fiscal_periods(db: AsyncSession) -> None:
@@ -1643,6 +1665,7 @@ async def main() -> None:
         await seed_crude_products(db)
         await seed_products(db)
         await seed_contractors(db)
+        await seed_processes(db)
         await seed_fiscal_periods(db)
         await seed_bom_data(db)
         await seed_cost_budgets(db)
