@@ -82,6 +82,19 @@ export function useUploadCrudeInventory() {
   });
 }
 
+/** 原液×工程ルート xlsb アップロード。routes キャッシュを invalidate。 */
+export function useUploadCrudeProcessRoutes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { file: File; period_id: string }) =>
+      importsApi.uploadCrudeProcessRoutes(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["crude-product-process-routes"] });
+    },
+  });
+}
+
 /** 決算用SC原材料アップロード。materials マスタと在庫評価キャッシュを invalidate。 */
 export function useUploadRawMaterialInventory() {
   const queryClient = useQueryClient();

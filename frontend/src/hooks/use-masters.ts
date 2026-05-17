@@ -8,6 +8,7 @@ import {
   wipStandardCostsApi,
   crudeProductsApi,
   contractorsApi,
+  processesApi,
   fiscalPeriodsApi,
   type MaterialStandardCostCreate,
   type MaterialStandardCostUpdate,
@@ -76,6 +77,13 @@ export function useContractors(params?: {
   return useQuery({
     queryKey: ["contractors", merged],
     queryFn: () => contractorsApi.list(merged),
+  });
+}
+
+export function useProcesses(params?: { search?: string; is_active?: boolean }) {
+  return useQuery({
+    queryKey: ["processes", params],
+    queryFn: () => processesApi.list(params),
   });
 }
 

@@ -9,6 +9,7 @@ import {
   Beaker,
   Package,
   ArrowLeftRight,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,7 @@ import {
   useUploadProductMovements,
   useUploadCrudeInventory,
   useUploadRawMaterialInventory,
+  useUploadCrudeProcessRoutes,
 } from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
@@ -77,6 +79,9 @@ export default function ImportsPage() {
   const [moveFile, setMoveFile] = useState<File | null>(null);
   const [moveDeleteExisting, setMoveDeleteExisting] = useState(true);
 
+  const [routePeriodId, setRoutePeriodId] = useState("");
+  const [routeFile, setRouteFile] = useState<File | null>(null);
+
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
   const upload = useUploadImport();
@@ -84,6 +89,7 @@ export default function ImportsPage() {
   const uploadCrude = useUploadCrudeInventory();
   const uploadRaw = useUploadRawMaterialInventory();
   const uploadMove = useUploadProductMovements();
+  const uploadRoutes = useUploadCrudeProcessRoutes();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
@@ -128,6 +134,12 @@ export default function ImportsPage() {
       delete_existing: moveDeleteExisting,
     });
     setMoveFile(null);
+  };
+
+  const handleUploadRoutes = async () => {
+    if (!routeFile || !routePeriodId) return;
+    await uploadRoutes.mutateAsync({ file: routeFile, period_id: routePeriodId });
+    setRouteFile(null);
   };
 
   return (
@@ -263,6 +275,72 @@ export default function ImportsPage() {
               <p className="text-xs text-muted-foreground">
                 合計: {uploadWipSc.data.total_rows}行 / 成功: {uploadWipSc.data.success_rows}行 /
                 エラー: {uploadWipSc.data.error_rows}行
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 原液×工程ルート xlsb 取込 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Workflow className="h-5 w-5" />
+            原液×工程ルート Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">第N期原価計算v8.xlsb</span> をアップロードし、
+            <strong>2.1④シート</strong>(原液→原液変換記録)から
+            <code>crude_product_process_routes</code> に
+            (原液 × 工程 × 期別)の実績数量を upsert します。
+            工程単位の配賦エンジンの基準データになります。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計期間</label>
+              <select
+                className="rounded-md border px-3 py-2 text-sm"
+                value={routePeriodId}
+                onChange={(e) => setRoutePeriodId(e.target.value)}
+              >
+                <option value="">選択...</option>
+                {periods?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {formatFiscalPeriod(p.year, p.month, p.start_date)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsb)</label>
+              <input
+                type="file"
+                accept=".xlsb"
+                className="text-sm"
+                key={routeFile?.name || "empty"}
+                onChange={(e) => setRouteFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <Button
+              onClick={handleUploadRoutes}
+              disabled={!routeFile || !routePeriodId || uploadRoutes.isPending}
+            >
+              {uploadRoutes.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadRoutes.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadRoutes.error as Error).message}
+            </p>
+          )}
+          {uploadRoutes.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadRoutes.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                集計: {uploadRoutes.data.total_rows}件 / 成功: {uploadRoutes.data.success_rows}件 /
+                未マッチ警告: {uploadRoutes.data.errors?.length ?? 0}件
               </p>
             </div>
           )}

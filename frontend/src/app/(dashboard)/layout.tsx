@@ -21,6 +21,7 @@ import {
   Scale,
   Boxes,
   Layers,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ const navigation = [
   { name: "部門マスタ", href: "/cost-centers", icon: Building2 },
   { name: "原材料マスタ", href: "/materials", icon: FlaskConical },
   { name: "外注先マスタ", href: "/contractors", icon: Truck },
+  { name: "工程マスタ", href: "/processes", icon: Workflow },
   { name: "会計期間", href: "/fiscal-periods", icon: Calendar },
 ];
 

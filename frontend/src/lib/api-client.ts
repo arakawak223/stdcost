@@ -426,6 +426,35 @@ export const contractorsApi = {
     fetchApi<{ message: string }>(`/masters/contractors/${id}`, { method: "DELETE" }),
 };
 
+// Processes (工程)
+export interface Process {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const processesApi = {
+  list: (params?: { search?: string; is_active?: boolean }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.set("search", params.search);
+    if (params?.is_active !== undefined) searchParams.set("is_active", String(params.is_active));
+    const qs = searchParams.toString();
+    return fetchApi<Process[]>(`/masters/processes${qs ? `?${qs}` : ""}`);
+  },
+  get: (id: string) => fetchApi<Process>(`/masters/processes/${id}`),
+  create: (data: Omit<Process, "id" | "created_at" | "updated_at">) =>
+    fetchApi<Process>("/masters/processes", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Process>) =>
+    fetchApi<Process>(`/masters/processes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    fetchApi<{ message: string }>(`/masters/processes/${id}`, { method: "DELETE" }),
+};
+
 // Fiscal Periods
 export interface FiscalPeriod {
   id: string;
@@ -957,6 +986,16 @@ export const importsApi = {
     formData.append("file", data.file);
     formData.append("period_id", data.period_id);
     return fetchApiMultipart<ImportUploadResponse>("/imports/wip-sc", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  /** 原液×工程ルート xlsb (第N期原価計算.xlsb) アップロード。 */
+  uploadCrudeProcessRoutes: (data: { file: File; period_id: string }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("period_id", data.period_id);
+    return fetchApiMultipart<ImportUploadResponse>("/imports/crude-process-routes", {
       method: "POST",
       body: formData,
     });
