@@ -21,6 +21,7 @@ from app.models.cost import (
     InventoryMovement,
     InventoryValuation,
     MaterialStandardCost,
+    PriorYearActual,
     StandardCost,
     WipStandardCost,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "MaterialStandardCost",
     "WipStandardCost",
     "ActualCost",
+    "PriorYearActual",
     "CrudeProductActualCost",
     "InventoryMovement",
     "InventoryValuation",

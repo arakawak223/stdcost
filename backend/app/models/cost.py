@@ -23,7 +23,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -265,6 +265,72 @@ class CrudeProductActualCost(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     crude_product: Mapped[CrudeProduct] = relationship("CrudeProduct", lazy="selectin")
     period: Mapped[FiscalPeriod] = relationship("FiscalPeriod", lazy="selectin")
+
+
+# --- 前年実績 (F-01) ---
+
+class PriorYearActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """前年(38期)製品実績SC原価 - 30SC製品rev1.xlsx 「5.製品」シート由来。
+
+    年度全体集計(月別ではなく fiscal_year 単位)。差異分析の前期比較ベース。
+    主要6項目は数量・単価・原価の3列セット、振替系7項目 (販促費DM/販促費/
+    試験研究費/接待交際費/寄付金/広告宣伝費/在庫調整) は transfer_items
+    JSONB に集約。
+    """
+    __tablename__ = "prior_year_actuals"
+    __table_args__ = (
+        UniqueConstraint("fiscal_year", "product_code", name="uq_prior_year_actual_year_code"),
+    )
+
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="会計年度(38=第38期)")
+    category: Mapped[str | None] = mapped_column(String(20), comment="製造/仕入/製造振替/AB")
+    product_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    product_name: Mapped[str | None] = mapped_column(String(200))
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("products.id"), index=True
+    )
+
+    # 期首商品棚卸高
+    opening_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    opening_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    opening_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # 当期商品製造･仕入原価
+    manufacturing_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    manufacturing_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    manufacturing_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # 振替
+    transfer_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    transfer_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    transfer_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # 当期商品売上原価
+    cogs_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    cogs_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    cogs_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # 外注支給分
+    outsource_supply_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    outsource_supply_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    outsource_supply_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # 期末商品棚卸高
+    closing_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    closing_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    closing_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # 振替系7項目 {key: {qty, cost}}
+    transfer_items: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    source_file: Mapped[str | None] = mapped_column(String(255))
+    source_sheet: Mapped[str | None] = mapped_column(String(100))
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("import_batches.id")
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    product: Mapped[Product | None] = relationship("Product", lazy="selectin")
 
 
 # --- 在庫移動 ---

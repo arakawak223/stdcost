@@ -16,6 +16,7 @@ from app.api.v1 import (
     inventory_valuations,
     material_standard_costs,
     materials,
+    prior_year_actuals,
     processes,
     products,
     reconciliation,
@@ -39,6 +40,7 @@ router.include_router(costs.router, prefix="/costs/standard", tags=["標準原�
 router.include_router(material_standard_costs.router, prefix="/costs/material-standard", tags=["原材料標準単価"])
 router.include_router(wip_standard_costs.router, prefix="/costs/wip-standard", tags=["仕掛品標準単価"])
 router.include_router(actual_costs.router, prefix="/costs/actual", tags=["実際原価"])
+router.include_router(prior_year_actuals.router, prefix="/costs/prior-year-actuals", tags=["前年実績"])
 router.include_router(imports.router, prefix="/imports", tags=["データ取込"])
 router.include_router(inventory.router, prefix="/inventory", tags=["在庫移動"])
 router.include_router(inventory_valuations.router, prefix="/inventory-valuations", tags=["在庫評価"])
