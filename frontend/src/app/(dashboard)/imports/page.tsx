@@ -10,6 +10,7 @@ import {
   Package,
   ArrowLeftRight,
   Workflow,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,7 @@ import {
   useUploadCrudeInventory,
   useUploadRawMaterialInventory,
   useUploadCrudeProcessRoutes,
+  useUploadPriorYearActuals,
 } from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
@@ -82,6 +84,10 @@ export default function ImportsPage() {
   const [routePeriodId, setRoutePeriodId] = useState("");
   const [routeFile, setRouteFile] = useState<File | null>(null);
 
+  const [priorYear, setPriorYear] = useState<number>(38);
+  const [priorFile, setPriorFile] = useState<File | null>(null);
+  const [priorDeleteExisting, setPriorDeleteExisting] = useState(true);
+
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
   const upload = useUploadImport();
@@ -90,6 +96,7 @@ export default function ImportsPage() {
   const uploadRaw = useUploadRawMaterialInventory();
   const uploadMove = useUploadProductMovements();
   const uploadRoutes = useUploadCrudeProcessRoutes();
+  const uploadPrior = useUploadPriorYearActuals();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
@@ -140,6 +147,16 @@ export default function ImportsPage() {
     if (!routeFile || !routePeriodId) return;
     await uploadRoutes.mutateAsync({ file: routeFile, period_id: routePeriodId });
     setRouteFile(null);
+  };
+
+  const handleUploadPrior = async () => {
+    if (!priorFile || !priorYear) return;
+    await uploadPrior.mutateAsync({
+      file: priorFile,
+      fiscal_year: priorYear,
+      delete_existing: priorDeleteExisting,
+    });
+    setPriorFile(null);
   };
 
   return (
@@ -581,6 +598,75 @@ export default function ImportsPage() {
               <p className="text-xs text-muted-foreground">
                 合計: {uploadMove.data.total_rows}行 / 成功: {uploadMove.data.success_rows}行 /
                 エラー: {uploadMove.data.error_rows}行
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 前年実績 (38期) 製品SC原価フロー */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            前年実績 (製品SC原価フロー) Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">30SC製品rev1.xlsx</span> の
+            <strong>5.製品</strong> シートから第38期の製品別年間SC原価フロー
+            (期首/当期製造仕入/振替/売上原価/外注支給/期末 + 振替系7項目) を
+            <code>prior_year_actuals</code> に取込みます。
+            差異分析の前期比較ベース。同一商品コードは合算して一本化します。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計年度</label>
+              <input
+                type="number"
+                className="w-24 rounded-md border px-3 py-2 text-sm"
+                value={priorYear}
+                onChange={(e) => setPriorYear(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={priorFile?.name || "empty"}
+                onChange={(e) => setPriorFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={priorDeleteExisting}
+                onChange={(e) => setPriorDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <Button
+              onClick={handleUploadPrior}
+              disabled={!priorFile || !priorYear || uploadPrior.isPending}
+            >
+              {uploadPrior.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadPrior.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadPrior.error as Error).message}
+            </p>
+          )}
+          {uploadPrior.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadPrior.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadPrior.data.total_rows}件 / 成功: {uploadPrior.data.success_rows}件 /
+                エラー: {uploadPrior.data.error_rows}件
               </p>
             </div>
           )}
