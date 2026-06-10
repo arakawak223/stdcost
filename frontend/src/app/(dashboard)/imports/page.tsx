@@ -41,6 +41,7 @@ import {
   useUploadPriorYearActuals,
   useUploadPriorYearMaterials,
   useUploadPriorYearWip,
+  useUploadPriorYearOutsource,
 } from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
@@ -95,6 +96,9 @@ export default function ImportsPage() {
   const [priorWipYear, setPriorWipYear] = useState<number>(38);
   const [priorWipFile, setPriorWipFile] = useState<File | null>(null);
   const [priorWipDeleteExisting, setPriorWipDeleteExisting] = useState(true);
+  const [priorOutYear, setPriorOutYear] = useState<number>(38);
+  const [priorOutFile, setPriorOutFile] = useState<File | null>(null);
+  const [priorOutDeleteExisting, setPriorOutDeleteExisting] = useState(true);
 
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
@@ -107,6 +111,7 @@ export default function ImportsPage() {
   const uploadPrior = useUploadPriorYearActuals();
   const uploadPriorMat = useUploadPriorYearMaterials();
   const uploadPriorWip = useUploadPriorYearWip();
+  const uploadPriorOut = useUploadPriorYearOutsource();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
@@ -187,6 +192,16 @@ export default function ImportsPage() {
       delete_existing: priorWipDeleteExisting,
     });
     setPriorWipFile(null);
+  };
+
+  const handleUploadPriorOut = async () => {
+    if (!priorOutFile || !priorOutYear) return;
+    await uploadPriorOut.mutateAsync({
+      file: priorOutFile,
+      fiscal_year: priorOutYear,
+      delete_existing: priorOutDeleteExisting,
+    });
+    setPriorOutFile(null);
   };
 
   return (
@@ -835,6 +850,76 @@ export default function ImportsPage() {
               <p className="text-xs text-muted-foreground">
                 合計: {uploadPriorWip.data.total_rows}件 / 成功: {uploadPriorWip.data.success_rows}件 /
                 エラー: {uploadPriorWip.data.error_rows}件
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 前年実績 (38期) 外注製品SC原価フロー */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            前年実績 (外注製品SC原価フロー) Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">31SC外注製品.xlsx</span> の
+            <strong>標準原価_外注製品</strong> シートから第38期の外注製品別
+            単価(38期実際/39期標準) + 数量・金額フロー
+            (37期末/生産/販売/38期末 + その他10項目) を
+            <code>prior_year_outsource_actuals</code> に取込みます。
+            区分A〜Fと外注先を保持。商品コードでマスタ名寄せ。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計年度</label>
+              <input
+                type="number"
+                className="w-24 rounded-md border px-3 py-2 text-sm"
+                value={priorOutYear}
+                onChange={(e) => setPriorOutYear(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={priorOutFile?.name || "empty"}
+                onChange={(e) => setPriorOutFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={priorOutDeleteExisting}
+                onChange={(e) => setPriorOutDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <Button
+              onClick={handleUploadPriorOut}
+              disabled={!priorOutFile || !priorOutYear || uploadPriorOut.isPending}
+            >
+              {uploadPriorOut.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadPriorOut.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadPriorOut.error as Error).message}
+            </p>
+          )}
+          {uploadPriorOut.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadPriorOut.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadPriorOut.data.total_rows}件 / 成功: {uploadPriorOut.data.success_rows}件 /
+                エラー: {uploadPriorOut.data.error_rows}件
               </p>
             </div>
           )}
