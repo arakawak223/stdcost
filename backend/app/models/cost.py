@@ -435,6 +435,65 @@ class PriorYearWipActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
 
+class PriorYearOutsourceActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """前年(38期)外注製品実績SC原価 - 31SC外注製品.xlsx 「標準原価_外注製品」由来。
+
+    年度全体集計(月別ではなく fiscal_year 単位)。単価は 38期実際/39期標準 の各
+    外注加工費/その他原価/外注製品原価。主要4項目 (37期末=期首/生産/販売/38期末=期末)
+    は数量・原価の2列セット。その他10項目 (外注支給/製品内製へ/その他振替/販促DM/
+    販促/試験研究費/交際費/寄付金/広告宣伝費/在庫調整) は movements JSONB に集約。
+    識別キーは 商品コード(product_code)。
+    """
+    __tablename__ = "prior_year_outsource_actuals"
+    __table_args__ = (
+        UniqueConstraint(
+            "fiscal_year", "product_code", name="uq_prior_year_outsource_actual_year_code"
+        ),
+    )
+
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="会計年度(38=第38期)")
+    product_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    product_name: Mapped[str | None] = mapped_column(String(200))
+    product_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("products.id"), index=True
+    )
+    section: Mapped[str | None] = mapped_column(String(50), comment="区分 A.〜F.")
+    contractor_code: Mapped[str | None] = mapped_column(String(50))
+    contractor_name: Mapped[str | None] = mapped_column(String(200))
+    supplied_material_code: Mapped[str | None] = mapped_column(String(50))
+    supplied_material_label: Mapped[str | None] = mapped_column(String(100))
+
+    # 単価情報 (単位原価/個)
+    actual_processing_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    actual_other_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    actual_product_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    std_processing_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    std_other_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    std_product_cost: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+
+    # 主要4項目 (数量=個 / 金額=円)
+    opening_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    opening_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    production_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    production_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    sales_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    sales_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    closing_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    closing_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # その他10項目 {key: {label, qty, cost}}
+    movements: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    source_file: Mapped[str | None] = mapped_column(String(255))
+    source_sheet: Mapped[str | None] = mapped_column(String(100))
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("import_batches.id")
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    product: Mapped[Product | None] = relationship("Product", lazy="selectin")
+
+
 # --- 在庫移動 ---
 
 class InventoryMovement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
