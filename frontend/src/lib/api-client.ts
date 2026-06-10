@@ -1097,6 +1097,23 @@ export const importsApi = {
       body: formData,
     });
   },
+  /** 前年実績(38期) 仕掛品SC原価フロー Excel (20 SC仕掛品.xlsx) アップロード。 */
+  uploadPriorYearWip: (data: {
+    file: File;
+    fiscal_year: number;
+    delete_existing?: boolean;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("fiscal_year", String(data.fiscal_year));
+    if (data.delete_existing !== undefined) {
+      formData.append("delete_existing", String(data.delete_existing));
+    }
+    return fetchApiMultipart<ImportUploadResponse>("/imports/prior-year-wip", {
+      method: "POST",
+      body: formData,
+    });
+  },
   list: (params?: { source_system?: string; period_id?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.source_system) searchParams.set("source_system", params.source_system);

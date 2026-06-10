@@ -127,6 +127,22 @@ export function useUploadPriorYearMaterials() {
   });
 }
 
+/** 前年実績(仕掛品SC原価フロー) アップロード。prior-year-wip キャッシュを invalidate。 */
+export function useUploadPriorYearWip() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      file: File;
+      fiscal_year: number;
+      delete_existing?: boolean;
+    }) => importsApi.uploadPriorYearWip(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["prior-year-wip"] });
+    },
+  });
+}
+
 /** 決算用SC原材料アップロード。materials マスタと在庫評価キャッシュを invalidate。 */
 export function useUploadRawMaterialInventory() {
   const queryClient = useQueryClient();

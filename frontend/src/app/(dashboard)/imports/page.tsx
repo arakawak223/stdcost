@@ -40,6 +40,7 @@ import {
   useUploadCrudeProcessRoutes,
   useUploadPriorYearActuals,
   useUploadPriorYearMaterials,
+  useUploadPriorYearWip,
 } from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
@@ -91,6 +92,9 @@ export default function ImportsPage() {
   const [priorMatYear, setPriorMatYear] = useState<number>(38);
   const [priorMatFile, setPriorMatFile] = useState<File | null>(null);
   const [priorMatDeleteExisting, setPriorMatDeleteExisting] = useState(true);
+  const [priorWipYear, setPriorWipYear] = useState<number>(38);
+  const [priorWipFile, setPriorWipFile] = useState<File | null>(null);
+  const [priorWipDeleteExisting, setPriorWipDeleteExisting] = useState(true);
 
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
@@ -102,6 +106,7 @@ export default function ImportsPage() {
   const uploadRoutes = useUploadCrudeProcessRoutes();
   const uploadPrior = useUploadPriorYearActuals();
   const uploadPriorMat = useUploadPriorYearMaterials();
+  const uploadPriorWip = useUploadPriorYearWip();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
@@ -172,6 +177,16 @@ export default function ImportsPage() {
       delete_existing: priorMatDeleteExisting,
     });
     setPriorMatFile(null);
+  };
+
+  const handleUploadPriorWip = async () => {
+    if (!priorWipFile || !priorWipYear) return;
+    await uploadPriorWip.mutateAsync({
+      file: priorWipFile,
+      fiscal_year: priorWipYear,
+      delete_existing: priorWipDeleteExisting,
+    });
+    setPriorWipFile(null);
   };
 
   return (
@@ -751,6 +766,75 @@ export default function ImportsPage() {
               <p className="text-xs text-muted-foreground">
                 合計: {uploadPriorMat.data.total_rows}件 / 成功: {uploadPriorMat.data.success_rows}件 /
                 エラー: {uploadPriorMat.data.error_rows}件
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 前年実績 (38期) 仕掛品SC原価フロー */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            前年実績 (仕掛品SC原価フロー) Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">20 SC仕掛品.xlsx</span> の
+            <strong>仕掛品SC明細</strong> シートから第38期の仕掛品(製造課)別年間SC原価フロー
+            (期首棚卸/原材料/労務費/経費/前工程費/期末棚卸 + その他7項目) を
+            <code>prior_year_wip_actuals</code> に取込みます。
+            識別キーは種類(例 13R)。原材料費は明細未展開のため0です(原材料SC明細側に集約)。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計年度</label>
+              <input
+                type="number"
+                className="w-24 rounded-md border px-3 py-2 text-sm"
+                value={priorWipYear}
+                onChange={(e) => setPriorWipYear(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={priorWipFile?.name || "empty"}
+                onChange={(e) => setPriorWipFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={priorWipDeleteExisting}
+                onChange={(e) => setPriorWipDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <Button
+              onClick={handleUploadPriorWip}
+              disabled={!priorWipFile || !priorWipYear || uploadPriorWip.isPending}
+            >
+              {uploadPriorWip.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadPriorWip.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadPriorWip.error as Error).message}
+            </p>
+          )}
+          {uploadPriorWip.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadPriorWip.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadPriorWip.data.total_rows}件 / 成功: {uploadPriorWip.data.success_rows}件 /
+                エラー: {uploadPriorWip.data.error_rows}件
               </p>
             </div>
           )}
