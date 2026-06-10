@@ -333,6 +333,56 @@ class PriorYearActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     product: Mapped[Product | None] = relationship("Product", lazy="selectin")
 
 
+class PriorYearMaterialActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """前年(38期)原材料実績SC原価 - 10 SC原材料.xlsx 「原材料SC明細」シート由来。
+
+    年度全体集計(月別ではなく fiscal_year 単位)。差異分析の前期比較ベース。
+    主要4項目 (期首棚卸/当期仕入高/当期投入高/期末棚卸) は数量・原価の2列セット。
+    調整系7項目 (検査・分析/試用/返品/ロス分/廃棄処分/在庫調整/その他調整) は
+    adjustment_items JSONB に集約。SC単価は原料単位の単一カラム。
+    """
+    __tablename__ = "prior_year_material_actuals"
+    __table_args__ = (
+        UniqueConstraint(
+            "fiscal_year", "material_code", name="uq_prior_year_material_actual_year_code"
+        ),
+    )
+
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="会計年度(38=第38期)")
+    material_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    material_name: Mapped[str | None] = mapped_column(String(200))
+    material_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("materials.id"), index=True
+    )
+    sc_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+    unit: Mapped[str | None] = mapped_column(String(20))
+
+    # 期首棚卸
+    opening_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    opening_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 当期仕入高
+    purchase_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    purchase_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 当期投入高
+    input_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    input_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 期末棚卸
+    closing_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    closing_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # 調整系7項目 {key: {label, qty, cost}}
+    adjustment_items: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    source_file: Mapped[str | None] = mapped_column(String(255))
+    source_sheet: Mapped[str | None] = mapped_column(String(100))
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("import_batches.id")
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    material: Mapped[Material | None] = relationship("Material", lazy="selectin")
+
+
 # --- 在庫移動 ---
 
 class InventoryMovement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
