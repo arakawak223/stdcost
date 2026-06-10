@@ -111,6 +111,22 @@ export function useUploadPriorYearActuals() {
   });
 }
 
+/** 前年実績(原材料SC原価フロー) アップロード。prior-year-materials キャッシュを invalidate。 */
+export function useUploadPriorYearMaterials() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      file: File;
+      fiscal_year: number;
+      delete_existing?: boolean;
+    }) => importsApi.uploadPriorYearMaterials(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["prior-year-materials"] });
+    },
+  });
+}
+
 /** 決算用SC原材料アップロード。materials マスタと在庫評価キャッシュを invalidate。 */
 export function useUploadRawMaterialInventory() {
   const queryClient = useQueryClient();

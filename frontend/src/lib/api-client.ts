@@ -1080,6 +1080,23 @@ export const importsApi = {
       body: formData,
     });
   },
+  /** 前年実績(38期) 原材料SC原価フロー Excel (10 SC原材料.xlsx) アップロード。 */
+  uploadPriorYearMaterials: (data: {
+    file: File;
+    fiscal_year: number;
+    delete_existing?: boolean;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("fiscal_year", String(data.fiscal_year));
+    if (data.delete_existing !== undefined) {
+      formData.append("delete_existing", String(data.delete_existing));
+    }
+    return fetchApiMultipart<ImportUploadResponse>("/imports/prior-year-materials", {
+      method: "POST",
+      body: formData,
+    });
+  },
   list: (params?: { source_system?: string; period_id?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.source_system) searchParams.set("source_system", params.source_system);

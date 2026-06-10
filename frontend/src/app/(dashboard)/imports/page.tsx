@@ -39,6 +39,7 @@ import {
   useUploadRawMaterialInventory,
   useUploadCrudeProcessRoutes,
   useUploadPriorYearActuals,
+  useUploadPriorYearMaterials,
 } from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
@@ -87,6 +88,9 @@ export default function ImportsPage() {
   const [priorYear, setPriorYear] = useState<number>(38);
   const [priorFile, setPriorFile] = useState<File | null>(null);
   const [priorDeleteExisting, setPriorDeleteExisting] = useState(true);
+  const [priorMatYear, setPriorMatYear] = useState<number>(38);
+  const [priorMatFile, setPriorMatFile] = useState<File | null>(null);
+  const [priorMatDeleteExisting, setPriorMatDeleteExisting] = useState(true);
 
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
@@ -97,6 +101,7 @@ export default function ImportsPage() {
   const uploadMove = useUploadProductMovements();
   const uploadRoutes = useUploadCrudeProcessRoutes();
   const uploadPrior = useUploadPriorYearActuals();
+  const uploadPriorMat = useUploadPriorYearMaterials();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
@@ -157,6 +162,16 @@ export default function ImportsPage() {
       delete_existing: priorDeleteExisting,
     });
     setPriorFile(null);
+  };
+
+  const handleUploadPriorMat = async () => {
+    if (!priorMatFile || !priorMatYear) return;
+    await uploadPriorMat.mutateAsync({
+      file: priorMatFile,
+      fiscal_year: priorMatYear,
+      delete_existing: priorMatDeleteExisting,
+    });
+    setPriorMatFile(null);
   };
 
   return (
@@ -667,6 +682,75 @@ export default function ImportsPage() {
               <p className="text-xs text-muted-foreground">
                 合計: {uploadPrior.data.total_rows}件 / 成功: {uploadPrior.data.success_rows}件 /
                 エラー: {uploadPrior.data.error_rows}件
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 前年実績 (38期) 原材料SC原価フロー */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            前年実績 (原材料SC原価フロー) Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">10 SC原材料.xlsx</span> の
+            <strong>原材料SC明細</strong> シートから第38期の原材料別年間SC原価フロー
+            (期首棚卸/当期仕入高/当期投入高/期末棚卸 + 調整系7項目) を
+            <code>prior_year_material_actuals</code> に取込みます。
+            差異分析の前期比較ベース。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計年度</label>
+              <input
+                type="number"
+                className="w-24 rounded-md border px-3 py-2 text-sm"
+                value={priorMatYear}
+                onChange={(e) => setPriorMatYear(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={priorMatFile?.name || "empty"}
+                onChange={(e) => setPriorMatFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={priorMatDeleteExisting}
+                onChange={(e) => setPriorMatDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <Button
+              onClick={handleUploadPriorMat}
+              disabled={!priorMatFile || !priorMatYear || uploadPriorMat.isPending}
+            >
+              {uploadPriorMat.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadPriorMat.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadPriorMat.error as Error).message}
+            </p>
+          )}
+          {uploadPriorMat.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadPriorMat.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadPriorMat.data.total_rows}件 / 成功: {uploadPriorMat.data.success_rows}件 /
+                エラー: {uploadPriorMat.data.error_rows}件
               </p>
             </div>
           )}
