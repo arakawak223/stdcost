@@ -39,6 +39,10 @@ from app.services.prior_year_material_actual_import import (
     SHEET_MATERIAL as PRIOR_YEAR_MATERIAL_SHEET,
     process_prior_year_material_import,
 )
+from app.services.prior_year_wip_actual_import import (
+    SHEET_WIP as PRIOR_YEAR_WIP_SHEET,
+    process_prior_year_wip_import,
+)
 from app.services.prior_year_actual_import import (
     SHEET_PRODUCT as PRIOR_YEAR_PRODUCT_SHEET,
     process_prior_year_actual_import,
@@ -512,6 +516,60 @@ async def upload_prior_year_materials(
         message = f"インポート失敗: {batch.error_rows}件のエラー"
     else:
         message = f"前年実績(原材料 fiscal_year={fiscal_year}) {batch.success_rows}件を取り込みました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/prior-year-wip", response_model=ImportUploadResponse)
+async def upload_prior_year_wip(
+    file: UploadFile,
+    fiscal_year: int = Form(..., description="会計年度(例: 38)"),
+    sheet_name: str = Form(PRIOR_YEAR_WIP_SHEET),
+    source_system: str = Form("manual"),
+    delete_existing: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """20 SC仕掛品.xlsx「仕掛品SC明細」シートから第38期仕掛品(製造課)別年間SC原価
+    フローを prior_year_wip_actuals に取り込む。
+
+    年度全体集計 (月別ではない)。fiscal_year=38 を指定して取り込む想定。
+    delete_existing=True (デフォルト) で既存の同 fiscal_year レコードを
+    全削除してから登録。
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Excelファイル (.xlsx) をアップロードしてください")
+
+    content = await file.read()
+
+    batch = await process_prior_year_wip_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        fiscal_year=fiscal_year,
+        sheet_name=sheet_name,
+        source_system=source_system,
+        delete_existing=delete_existing,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+    if batch.status == "failed":
+        message = f"インポート失敗: {batch.notes or ''}"
+    elif batch.error_rows > 0 and batch.success_rows > 0:
+        message = f"{batch.success_rows}件成功、{batch.error_rows}件エラー"
+    elif batch.error_rows > 0:
+        message = f"インポート失敗: {batch.error_rows}件のエラー"
+    else:
+        message = f"前年実績(仕掛品 fiscal_year={fiscal_year}) {batch.success_rows}件を取り込みました"
 
     return ImportUploadResponse(
         batch_id=batch.id,

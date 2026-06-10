@@ -383,6 +383,58 @@ class PriorYearMaterialActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     material: Mapped[Material | None] = relationship("Material", lazy="selectin")
 
 
+class PriorYearWipActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """前年(38期)仕掛品(製造課)実績SC原価 - 20 SC仕掛品.xlsx 「仕掛品SC明細」由来。
+
+    年度全体集計(月別ではなく fiscal_year 単位)。差異分析の前期比較ベース。
+    主要6項目 (期首棚卸/原材料/労務費/経費/前工程費/期末棚卸) は数量・原価の
+    2列セット。その他7項目 (完成品/研究費/販促費/廃棄処分/次工程へ/製造部生産分/
+    在庫調整) は cost_items JSONB に集約。識別キーは 種類(wip_code)。
+    """
+    __tablename__ = "prior_year_wip_actuals"
+    __table_args__ = (
+        UniqueConstraint(
+            "fiscal_year", "wip_code", name="uq_prior_year_wip_actual_year_code"
+        ),
+    )
+
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="会計年度(38=第38期)")
+    wip_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True, comment="種類 (例: 13R)")
+    production_year: Mapped[str | None] = mapped_column(String(20), comment="仕込年度")
+    batch_no: Mapped[str | None] = mapped_column(String(20), comment="番手")
+    nayose: Mapped[str | None] = mapped_column(String(50), index=True, comment="名寄(原液グループ)")
+    sc_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False, default=0)
+
+    # 期首棚卸
+    opening_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    opening_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 原材料
+    material_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    material_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 労務費
+    labor_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    labor_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 経費
+    expense_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    expense_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 前工程費
+    pre_process_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    pre_process_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+    # 期末棚卸
+    closing_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0)
+    closing_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0)
+
+    # その他7項目 {key: {label, qty, cost}}
+    cost_items: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    source_file: Mapped[str | None] = mapped_column(String(255))
+    source_sheet: Mapped[str | None] = mapped_column(String(100))
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("import_batches.id")
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
 # --- 在庫移動 ---
 
 class InventoryMovement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
