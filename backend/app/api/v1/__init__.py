@@ -19,6 +19,7 @@ from app.api.v1 import (
     prior_year_actuals,
     prior_year_material_actuals,
     prior_year_outsource_actuals,
+    prior_year_r_wip_components,
     prior_year_wip_actuals,
     processes,
     products,
@@ -47,6 +48,7 @@ router.include_router(prior_year_actuals.router, prefix="/costs/prior-year-actua
 router.include_router(prior_year_material_actuals.router, prefix="/costs/prior-year-materials", tags=["前年実績(原材料)"])
 router.include_router(prior_year_wip_actuals.router, prefix="/costs/prior-year-wip", tags=["前年実績(仕掛品)"])
 router.include_router(prior_year_outsource_actuals.router, prefix="/costs/prior-year-outsource", tags=["前年実績(外注製品)"])
+router.include_router(prior_year_r_wip_components.router, prefix="/costs/prior-year-r-wip", tags=["前年実績(R仕掛品)"])
 router.include_router(imports.router, prefix="/imports", tags=["データ取込"])
 router.include_router(inventory.router, prefix="/inventory", tags=["在庫移動"])
 router.include_router(inventory_valuations.router, prefix="/inventory-valuations", tags=["在庫評価"])

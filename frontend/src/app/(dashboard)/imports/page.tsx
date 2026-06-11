@@ -42,6 +42,8 @@ import {
   useUploadPriorYearMaterials,
   useUploadPriorYearWip,
   useUploadPriorYearOutsource,
+  useUploadPriorYearRMaterial,
+  useUploadPriorYearRLabor,
 } from "@/hooks/use-imports";
 import { formatDateTime, formatFiscalPeriod, sourceSystemLabels, importStatusLabels } from "@/lib/format";
 import type { ImportBatch } from "@/lib/api-client";
@@ -99,6 +101,12 @@ export default function ImportsPage() {
   const [priorOutYear, setPriorOutYear] = useState<number>(38);
   const [priorOutFile, setPriorOutFile] = useState<File | null>(null);
   const [priorOutDeleteExisting, setPriorOutDeleteExisting] = useState(true);
+  const [priorRMatYear, setPriorRMatYear] = useState<number>(38);
+  const [priorRMatFile, setPriorRMatFile] = useState<File | null>(null);
+  const [priorRMatDeleteExisting, setPriorRMatDeleteExisting] = useState(true);
+  const [priorRLabYear, setPriorRLabYear] = useState<number>(38);
+  const [priorRLabFile, setPriorRLabFile] = useState<File | null>(null);
+  const [priorRLabDeleteExisting, setPriorRLabDeleteExisting] = useState(true);
 
   const { data: periods } = useFiscalPeriods();
   const { data: batches } = useImportBatches();
@@ -112,6 +120,8 @@ export default function ImportsPage() {
   const uploadPriorMat = useUploadPriorYearMaterials();
   const uploadPriorWip = useUploadPriorYearWip();
   const uploadPriorOut = useUploadPriorYearOutsource();
+  const uploadPriorRMat = useUploadPriorYearRMaterial();
+  const uploadPriorRLab = useUploadPriorYearRLabor();
 
   const handleUpload = async () => {
     if (!file || !sourceSystem || !periodId) return;
@@ -202,6 +212,26 @@ export default function ImportsPage() {
       delete_existing: priorOutDeleteExisting,
     });
     setPriorOutFile(null);
+  };
+
+  const handleUploadPriorRMat = async () => {
+    if (!priorRMatFile || !priorRMatYear) return;
+    await uploadPriorRMat.mutateAsync({
+      file: priorRMatFile,
+      fiscal_year: priorRMatYear,
+      delete_existing: priorRMatDeleteExisting,
+    });
+    setPriorRMatFile(null);
+  };
+
+  const handleUploadPriorRLab = async () => {
+    if (!priorRLabFile || !priorRLabYear) return;
+    await uploadPriorRLab.mutateAsync({
+      file: priorRLabFile,
+      fiscal_year: priorRLabYear,
+      delete_existing: priorRLabDeleteExisting,
+    });
+    setPriorRLabFile(null);
   };
 
   return (
@@ -920,6 +950,144 @@ export default function ImportsPage() {
               <p className="text-xs text-muted-foreground">
                 合計: {uploadPriorOut.data.total_rows}件 / 成功: {uploadPriorOut.data.success_rows}件 /
                 エラー: {uploadPriorOut.data.error_rows}件
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 前年実績 (38期) R仕掛品 加重平均原材料費 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            前年実績 (R仕掛品 加重平均原材料費) Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">21-1 R仕掛品　原材料.xlsx</span> の
+            <strong>R仕掛原材料費</strong> シートから原液系列(R1/R2/R3)の
+            <strong>加重平均</strong>原材料費 (数量KG/金額/単価) を
+            <code>prior_year_r_wip_components</code> に取込みます。
+            34〜38期ロットを縦積み集計した加重平均結果のみを採用。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計年度</label>
+              <input
+                type="number"
+                className="w-24 rounded-md border px-3 py-2 text-sm"
+                value={priorRMatYear}
+                onChange={(e) => setPriorRMatYear(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={priorRMatFile?.name || "empty"}
+                onChange={(e) => setPriorRMatFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={priorRMatDeleteExisting}
+                onChange={(e) => setPriorRMatDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <Button
+              onClick={handleUploadPriorRMat}
+              disabled={!priorRMatFile || !priorRMatYear || uploadPriorRMat.isPending}
+            >
+              {uploadPriorRMat.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadPriorRMat.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadPriorRMat.error as Error).message}
+            </p>
+          )}
+          {uploadPriorRMat.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadPriorRMat.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadPriorRMat.data.total_rows}件 / 成功: {uploadPriorRMat.data.success_rows}件 /
+                エラー: {uploadPriorRMat.data.error_rows}件
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 前年実績 (38期) R仕掛品 加重平均労務費 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            前年実績 (R仕掛品 加重平均労務費) Excel取込
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            <span className="font-mono">21-2 R仕掛品　労務費.xlsx</span> の
+            <strong>R仕掛品　労務費</strong> シートから原液系列(R1/R2/R3)の
+            <strong>採用加重平均</strong>労務費 (数量KG/金額/単価) を
+            <code>prior_year_r_wip_components</code> に取込みます。
+            異常値除外後に罫線で囲まれた「□採用値」を自動検出。
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">会計年度</label>
+              <input
+                type="number"
+                className="w-24 rounded-md border px-3 py-2 text-sm"
+                value={priorRLabYear}
+                onChange={(e) => setPriorRLabYear(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">ファイル (.xlsx)</label>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="text-sm"
+                key={priorRLabFile?.name || "empty"}
+                onChange={(e) => setPriorRLabFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="checkbox"
+                checked={priorRLabDeleteExisting}
+                onChange={(e) => setPriorRLabDeleteExisting(e.target.checked)}
+              />
+              既存削除
+            </label>
+            <Button
+              onClick={handleUploadPriorRLab}
+              disabled={!priorRLabFile || !priorRLabYear || uploadPriorRLab.isPending}
+            >
+              {uploadPriorRLab.isPending ? "取込中..." : "取込実行"}
+            </Button>
+          </div>
+          {uploadPriorRLab.error && (
+            <p className="mt-2 text-sm text-destructive">
+              {(uploadPriorRLab.error as Error).message}
+            </p>
+          )}
+          {uploadPriorRLab.data && (
+            <div className="mt-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{uploadPriorRLab.data.message}</p>
+              <p className="text-xs text-muted-foreground">
+                合計: {uploadPriorRLab.data.total_rows}件 / 成功: {uploadPriorRLab.data.success_rows}件 /
+                エラー: {uploadPriorRLab.data.error_rows}件
               </p>
             </div>
           )}

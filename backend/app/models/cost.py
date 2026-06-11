@@ -494,6 +494,44 @@ class PriorYearOutsourceActual(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     product: Mapped[Product | None] = relationship("Product", lazy="selectin")
 
 
+class PriorYearRWipComponent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """前年(38期)R仕掛品(原液系列)の加重平均原価コンポーネント。
+
+    - 21-1 R仕掛品　原材料.xlsx 「R仕掛原材料費」 → cost_component='material'
+    - 21-2 R仕掛品　労務費.xlsx 「R仕掛品　労務費」 → cost_component='labor'
+
+    両シートとも 34〜38期のロットを縦積みし加重平均単価を導出するクロス集計
+    ワークシート。各 R系列(R1/R2/R3)の加重平均結果のみを 1レコードとして保持
+    (原材料=「加重平均」ラベル行、労務費=罫線囲み「□採用値」)。
+    識別キーは (fiscal_year, r_series, cost_component)。
+    """
+    __tablename__ = "prior_year_r_wip_components"
+    __table_args__ = (
+        UniqueConstraint(
+            "fiscal_year",
+            "r_series",
+            "cost_component",
+            name="uq_prior_year_r_wip_component_key",
+        ),
+    )
+
+    fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="会計年度(38=第38期)")
+    r_series: Mapped[str] = mapped_column(String(10), nullable=False, comment="原液系列 (R1/R2/R3)")
+    cost_component: Mapped[str] = mapped_column(
+        String(20), nullable=False, comment="material=原材料費 / labor=労務費"
+    )
+    weighted_avg_qty: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0, comment="加重平均数量(KG)")
+    weighted_avg_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=0, comment="加重平均金額(円)")
+    weighted_avg_unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=0, comment="加重平均単価(円/KG)")
+
+    source_file: Mapped[str | None] = mapped_column(String(255))
+    source_sheet: Mapped[str | None] = mapped_column(String(100))
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("import_batches.id")
+    )
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
 # --- 在庫移動 ---
 
 class InventoryMovement(UUIDPrimaryKeyMixin, TimestampMixin, Base):

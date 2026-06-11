@@ -51,6 +51,11 @@ from app.services.prior_year_actual_import import (
     SHEET_PRODUCT as PRIOR_YEAR_PRODUCT_SHEET,
     process_prior_year_actual_import,
 )
+from app.services.prior_year_r_wip_import import (
+    SHEET_MATERIAL as PRIOR_YEAR_R_MATERIAL_SHEET,
+    SHEET_LABOR as PRIOR_YEAR_R_LABOR_SHEET,
+    process_prior_year_r_wip_import,
+)
 
 router = APIRouter()
 
@@ -637,6 +642,82 @@ async def upload_prior_year_outsource(
         error_rows=batch.error_rows,
         errors=errors,
         message=message,
+    )
+
+
+async def _import_r_wip(
+    file: UploadFile,
+    fiscal_year: int,
+    cost_component: str,
+    sheet_name: str | None,
+    source_system: str,
+    delete_existing: bool,
+    db: AsyncSession,
+    label: str,
+) -> ImportUploadResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名が指定されていません")
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Excelファイル (.xlsx) をアップロードしてください")
+
+    content = await file.read()
+    batch = await process_prior_year_r_wip_import(
+        db=db,
+        file_content=content,
+        filename=file.filename,
+        fiscal_year=fiscal_year,
+        cost_component=cost_component,
+        sheet_name=sheet_name,
+        source_system=source_system,
+        delete_existing=delete_existing,
+    )
+
+    errors = [ImportErrorRead.model_validate(e) for e in batch.errors]
+    if batch.status == "failed":
+        message = f"インポート失敗: {batch.notes or ''}"
+    else:
+        message = f"前年実績({label} fiscal_year={fiscal_year}) {batch.success_rows}件を取り込みました"
+
+    return ImportUploadResponse(
+        batch_id=batch.id,
+        status=batch.status,
+        total_rows=batch.total_rows,
+        success_rows=batch.success_rows,
+        error_rows=batch.error_rows,
+        errors=errors,
+        message=message,
+    )
+
+
+@router.post("/prior-year-r-material", response_model=ImportUploadResponse)
+async def upload_prior_year_r_material(
+    file: UploadFile,
+    fiscal_year: int = Form(..., description="会計年度(例: 38)"),
+    sheet_name: str = Form(PRIOR_YEAR_R_MATERIAL_SHEET),
+    source_system: str = Form("manual"),
+    delete_existing: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """21-1 R仕掛品　原材料.xlsx「R仕掛原材料費」から R系列(R1/R2/R3)の
+    加重平均原材料費 (数量/金額/単価) を prior_year_r_wip_components に取り込む。"""
+    return await _import_r_wip(
+        file, fiscal_year, "material", sheet_name, source_system, delete_existing, db, "R仕掛品原材料費"
+    )
+
+
+@router.post("/prior-year-r-labor", response_model=ImportUploadResponse)
+async def upload_prior_year_r_labor(
+    file: UploadFile,
+    fiscal_year: int = Form(..., description="会計年度(例: 38)"),
+    sheet_name: str = Form(PRIOR_YEAR_R_LABOR_SHEET),
+    source_system: str = Form("manual"),
+    delete_existing: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """21-2 R仕掛品　労務費.xlsx「R仕掛品　労務費」から R系列(R1/R2/R3)の
+    採用加重平均労務費 (罫線囲み値, 数量/金額/単価) を prior_year_r_wip_components に取り込む。"""
+    return await _import_r_wip(
+        file, fiscal_year, "labor", sheet_name, source_system, delete_existing, db, "R仕掛品労務費"
     )
 
 

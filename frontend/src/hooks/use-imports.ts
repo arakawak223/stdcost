@@ -159,6 +159,38 @@ export function useUploadPriorYearOutsource() {
   });
 }
 
+/** 前年実績(R仕掛品 加重平均原材料費) アップロード。prior-year-r-wip キャッシュを invalidate。 */
+export function useUploadPriorYearRMaterial() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      file: File;
+      fiscal_year: number;
+      delete_existing?: boolean;
+    }) => importsApi.uploadPriorYearRMaterial(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["prior-year-r-wip"] });
+    },
+  });
+}
+
+/** 前年実績(R仕掛品 加重平均労務費) アップロード。prior-year-r-wip キャッシュを invalidate。 */
+export function useUploadPriorYearRLabor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      file: File;
+      fiscal_year: number;
+      delete_existing?: boolean;
+    }) => importsApi.uploadPriorYearRLabor(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["import-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["prior-year-r-wip"] });
+    },
+  });
+}
+
 /** 決算用SC原材料アップロード。materials マスタと在庫評価キャッシュを invalidate。 */
 export function useUploadRawMaterialInventory() {
   const queryClient = useQueryClient();

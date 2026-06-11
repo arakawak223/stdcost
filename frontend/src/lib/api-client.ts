@@ -1131,6 +1131,38 @@ export const importsApi = {
       body: formData,
     });
   },
+  uploadPriorYearRMaterial: (data: {
+    file: File;
+    fiscal_year: number;
+    delete_existing?: boolean;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("fiscal_year", String(data.fiscal_year));
+    if (data.delete_existing !== undefined) {
+      formData.append("delete_existing", String(data.delete_existing));
+    }
+    return fetchApiMultipart<ImportUploadResponse>("/imports/prior-year-r-material", {
+      method: "POST",
+      body: formData,
+    });
+  },
+  uploadPriorYearRLabor: (data: {
+    file: File;
+    fiscal_year: number;
+    delete_existing?: boolean;
+  }) => {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("fiscal_year", String(data.fiscal_year));
+    if (data.delete_existing !== undefined) {
+      formData.append("delete_existing", String(data.delete_existing));
+    }
+    return fetchApiMultipart<ImportUploadResponse>("/imports/prior-year-r-labor", {
+      method: "POST",
+      body: formData,
+    });
+  },
   list: (params?: { source_system?: string; period_id?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.source_system) searchParams.set("source_system", params.source_system);
